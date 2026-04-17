@@ -4,6 +4,7 @@ This document enumerates **every task** required to finish RecipeRoom. When all 
 
 - **Stack**: MySQL · Node.js/Express (raw SQL, no ORM) · React (Vite) + Tailwind CSS
 - **Team**: 5 developers (Bilkent CS353, Group 7)
+- **Scope**: exactly what the design report (DB Design Report) declares — no more, no less
 - **Scope coverage**: backend API · frontend pages · shared components · DB features · seed data · demo prep
 
 ---
@@ -33,12 +34,12 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 
 | Lane | Focus | Owns task IDs |
 |---|---|---|
-| **L1 — Backend Core & Auth** | Auth, users, admin, DB utils, seed | B01–B03, B09, B11, D01, D02 |
-| **L2 — Backend Recipes & Content** | Recipes, ingredients, substitutions, reviews, highlights | B04, B05, B06, B10, B12 |
+| **L1 — Backend Core & Auth** | Auth, users, admin, DB utils, seed, security, validation | B01–B03, B09, B11, B15, B17, D01, D02, D04 |
+| **L2 — Backend Recipes & Content** | Recipes, ingredients, substitutions, reviews, highlights, media, cook logs, affinity | B04, B05, B06, B10, B12, B18, B19, B20, B21, B22 |
 | **L3 — Backend Commerce & Ops** | Orders, suppliers, inventory, challenges | B07, B08, B13, B14 |
-| **L4 — Frontend Consumer Side** | Home, Recipes, RecipeDetail, CreateRecipe, Profile | P01, P02, P03, P04, P07 |
-| **L5 — Frontend Commerce/Ops Side** | Checkout, Challenges, Supplier pages, Admin, SubstitutionPicker | P05, P06, P08, P09, P10, P11, F05 |
-| **Shared** | API client, auth context, route guards, UI kit | F01, F02, F03, F04 |
+| **L4 — Frontend Consumer Side** | Home, Recipes, RecipeDetail, CreateRecipe, Profile | P01, P02, P03, P04, P07, P13 |
+| **L5 — Frontend Commerce/Ops Side** | Checkout, Challenges, Supplier pages, Admin, SubstitutionPicker, Highlights admin | P05, P06, P08, P09, P10, P11, P12, F05, F08 |
+| **Shared** | API client, auth context, route guards, UI kit, global errors, 404, §3 query map, tag constants | F01, F02, F03, F04, F06, F07, D03, X08 |
 
 ---
 
@@ -76,10 +77,14 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
   - `GET /api/users/:id` — public profile
   - `PATCH /api/users/:id` — self only
   - `GET /api/users/:id/recipes`
-  - `GET /api/users/:id/favorites`
-  - `GET /api/users/:id/royalties` — chefs only
-  - `POST /api/users/:id/follow` and `DELETE /api/users/:id/follow`
-- **Accept**: Ownership enforced on PATCH; royalties endpoint returns rows from `Earns_Royalty` table.
+  - `GET /api/users/:id/royalties` — chefs only, returns rows from `Earns_Royalty` plus aggregate `royalty_points`
+  - `GET /api/users/:id/meal-lists` — reads `Meal_List` + `Contains_Recipe`
+  - `POST /api/users/:id/meal-lists` — create meal list
+  - `PATCH /api/users/:id/meal-lists/:listId` — rename / update
+  - `DELETE /api/users/:id/meal-lists/:listId`
+  - `POST /api/users/:id/meal-lists/:listId/recipes` — add recipe (writes `Contains_Recipe`)
+  - `DELETE /api/users/:id/meal-lists/:listId/recipes/:recipeId`
+- **Accept**: Ownership enforced on PATCH/DELETE; royalties endpoint returns rows from `Earns_Royalty` table; meal lists appear on Profile tab.
 - **Dep**: B01, B02
 
 ## B11 · Admin API [M]
@@ -87,19 +92,37 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
   - `GET /api/admin/pending-chefs` — chefs with `verification_status = 'PENDING'`
   - `POST /api/admin/chefs/:id/approve`
   - `POST /api/admin/chefs/:id/reject`
-  - `GET /api/admin/reports`
-  - `POST /api/admin/content/:type/:id/moderate`
-- **Accept**: All routes require `Administrator` role; approval flips `verification_status` to `VERIFIED`.
+  - `GET /api/admin/ingredients` — list
+  - `POST /api/admin/ingredients` — create (covers new ingredient added by admin)
+  - `PATCH /api/admin/ingredients/:id` — update
+  - `DELETE /api/admin/ingredients/:id`
+  - `POST /api/admin/content/:type/:id/moderate` — flag/remove recipe or review
+- **Accept**: All routes require `Administrator` role; approval flips `verification_status` to `VERIFIED`; ingredient CRUD writes to `Ingredient` table.
 - **Dep**: B01, B02
+
+## B15 · Password hashing [S]
+- **Do**: Install `bcrypt`. Update `backend/src/routes/auth.js`:
+  - Register endpoints: hash password with `bcrypt.hash(password, 10)` before inserting
+  - Login endpoint: replace plaintext `user.passwordHash !== password` check with `bcrypt.compare(password, user.passwordHash)`
+  - Currently `auth.js:33` and `auth.js:59` use plaintext — this is a real security issue to fix before grading
+- **Accept**: New registrations store a `$2b$...` hash in DB; existing plaintext rows need re-registering (or wipe DB and reseed); login works end-to-end.
+- **Dep**: B03
+
+## B17 · Request validation middleware [S]
+- **Do**: Install `express-validator` (or `zod` + tiny wrapper). Define per-route schemas for required fields. Return 400 with readable field-level errors before touching SQL.
+- **Accept**: Posting `{}` to any write endpoint returns 400 with `{ error: "validation", fields: {...} }`, not a raw SQL error.
+- **Dep**: B02
 
 ## D01 · Seed script [M]
 - **Do**: `db/seed.sql` — populate:
   - 2 verified chefs, 3 home cooks, 2 suppliers, 1 admin
-  - ~10 recipes across cuisines (some forks, some originals), each with ingredients and steps
+  - ~10 recipes across cuisines (some forks, some originals), each with ingredients, steps, media, and tags
   - 1 active challenge, 1 past challenge with winner
-  - 3 sample completed orders
-  - Substitution rules covering common ingredients
+  - 3 sample completed orders (so royalty trigger has fired)
+  - Substitution rules covering common ingredients + per-recipe `Allows_Substitution` rows
   - Supplier inventory for each supplier
+  - At least one `Featured_Selection` row (active) for Home highlights
+  - Sample `Has_tag_pref` rows and `Logs_Cook` entries
 - **Accept**: `mysql -u root -p reciperoom < db/seed.sql` leaves a demo-ready DB (no empty pages during demo).
 - **Dep**: Schema (done)
 
@@ -108,26 +131,43 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 - **Accept**: `./db/reset.sh` returns DB to clean demo state.
 - **Dep**: D01
 
+## D03 · Design-report §3 query map + table-coverage audit [M]
+- **Do**: Create `db/QUERY_MAP.md`:
+  1. Enumerate every SQL query listed in design report §3 (Login, Register, Highlights, Affinity, Recipe Fork, Shop This Meal, Recipe Discovery, Create Recipe, Kitchen Challenges, Supplier Inventory, Orders, Cook Log, Royalty Statistics, Recipe Performance, etc.)
+  2. For each, link to the API endpoint that implements it (e.g. "Recipe Fork → `POST /api/recipes/:id/fork` in `routes/recipes.js`")
+  3. Enumerate all 25 tables — mark each with the endpoint(s) that read and write it
+  4. Flag any table with no read path (must surface somewhere in the UI or justify why not)
+- **Accept**: Every §3 query maps to an endpoint; every table has at least one reader; no orphaned tables. TA can tick this off during demo.
+- **Dep**: B04, B06, B07, B08, B11, B12, B13, B18, B19, B20, B21, B22 (all backend routes that implement §3 queries)
+
+## D04 · is_ingrd_different constraint (trigger workaround) [S]
+- **Do**: Design report §4 declares `is_ingrd_different` on `Allows_Substitution` as the meaningful constraint. MySQL rejected the original CHECK constraint (error 3823 — CHECK referencing FK cols). Implement equivalent via a `BEFORE INSERT` and `BEFORE UPDATE` trigger on `Allows_Substitution` that raises `SIGNAL SQLSTATE '45000'` when `ingredient_id = substitute_ingredient_id`.
+  - Add `db/triggers/trg_allows_substitution_check.sql`
+  - Include the CREATE TRIGGER DDL in `init.sql` so fresh installs get it
+- **Accept**: Inserting a row with `ingredient_id = substitute_ingredient_id` is rejected with a clear error; normal inserts succeed; design report §4 claim matches implementation.
+- **Dep**: Schema (done)
+
 ---
 
 # L2 — Backend Recipes & Content
 
 ## B04 · Recipes API [L]
 - **Do**: `routes/recipes.js`
-  - `GET /api/recipes` — filters: `?category=&cuisine=&diet=&ingredient=&dish_type=&meal=&popular=&q=&page=&limit=` (keys match Navbar dropdown values). Use `Recipe_Summary` view.
-  - `GET /api/recipes/:id` — joins ingredients, steps, reviews, parent recipe
-  - `POST /api/recipes` — transactional: insert `Recipe` + `Recipe_Ingredient[]` + `Recipe_Step[]` + tag rows
+  - `GET /api/recipes` — filters: `?category=&cuisine=&diet=&ingredient=&dish_type=&meal=&popular=&q=&min_time=&max_time=&page=&limit=` (keys match Navbar dropdown values). Use `Recipe_Summary` view. **Range filter** on prep/cook time satisfies CS353 range-query grading criterion.
+  - `GET /api/recipes/:id` — joins ingredients, steps, media, reviews, parent recipe
+  - `POST /api/recipes` — transactional: insert `Recipe` + `Recipe_Ingredient[]` + `Recipe_Step[]` + tag rows + `Recipe_Media[]` + `Allows_Substitution[]`
   - `PUT /api/recipes/:id` — author only
   - `DELETE /api/recipes/:id` — author only
   - `POST /api/recipes/:id/fork` — transactional clone setting `parent_recipe_id`
   - `POST /api/recipes/:id/publish` — draft → published
   - `GET /api/recipes/my` — author's drafts + published
-- **Accept**: Fork creates new row with parent FK; every filter key returns correct subset; transactional rollback leaves DB clean on failure.
+  - `GET /api/recipes/:id/performance` — chef's recipe performance report (views/orders/ratings) from design §3.4.2
+- **Accept**: Fork creates new row with parent FK; every filter key returns correct subset; transactional rollback leaves DB clean on failure; performance endpoint returns aggregate rows.
 - **Dep**: B01, B02
 
 ## B05 · Ingredients API [S]
 - **Do**: `routes/ingredients.js`
-  - `GET /api/ingredients/search?q=` — LIKE autocomplete, limit 10
+  - `GET /api/ingredients/search?q=` — LIKE autocomplete, limit 10 (satisfies CS353 flexible-query grading criterion)
   - `GET /api/ingredients/:id/substitutes` — reads `Substitution_Rule`
 - **Accept**: Autocomplete responds under 200ms on seed data; returns `[]` for no match.
 - **Dep**: B02
@@ -136,10 +176,11 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 - **Do**: `routes/substitutions.js`
   - `POST /api/substitutions/plan` body `{ recipe_id, region? }`
   - Returns per ingredient: `{ preferred_supplier_item, price, in_stock, alternatives[] }`
-  - Implements the "Shop This Meal" SQL from design report §3
+  - Implements the "Shop This Meal" SQL from design report §3.3.4
   - Uses `Supplier_Stock_Status` view
-- **Accept**: For a seeded recipe, returns a complete plan; alternatives drawn from `Substitution_Rule` + `Allows_Substitution`; out-of-stock items marked.
-- **Dep**: B02, D01
+  - Respects each recipe's `Allows_Substitution` whitelist — no swap is offered if the owner didn't allow it
+- **Accept**: For a seeded recipe, returns a complete plan; alternatives drawn from `Substitution_Rule` filtered by `Allows_Substitution`; out-of-stock items marked.
+- **Dep**: B02, B22, D01
 
 ## B10 · Reviews & ratings API [S]
 - **Do**: `routes/reviews.js`
@@ -149,13 +190,59 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 - **Accept**: Duplicate review attempt returns 409; aggregate rating reflects in `Recipe_Summary` view.
 - **Dep**: B01, B02
 
-## B12 · Home highlights feed [M]
+## B12 · Home highlights feed (trending + affinity) [M]
 - **Do**: `routes/highlights.js`
-  - `GET /api/highlights/home` — returns `{ trending[], recommendations[], active_challenges[] }`
-  - Trending: top-rated + recent from `Recipe_Summary`
-  - Recommendations: affinity SQL from design report §3 (based on user's favorites/history) when logged in; falls back to trending otherwise
-- **Accept**: Endpoint returns three arrays; logged-in users get personalized recommendations.
+  - `GET /api/highlights/home` — returns `{ featured[], trending[], recommendations[], active_challenges[] }`
+  - `featured`: active `Featured_Selection` rows (admin-curated — see B18)
+  - `trending`: top-rated + recent from `Recipe_Summary`
+  - `recommendations`: affinity SQL from design report §3.3.2 — scores recipes against the user's flavor profile (`Has_tag_pref` weights). Falls back to trending for logged-out users.
+- **Accept**: Endpoint returns four arrays; logged-in users get personalized recommendations ranked by affinity score.
+- **Dep**: B01, B02, B18, B19
+
+## B18 · Highlights admin API (Featured_Selection CRUD) [S]
+- **Do**: `routes/highlights.js` (admin-scoped subset)
+  - `GET /api/admin/highlights` — list all selections, active + past
+  - `POST /api/admin/highlights` — create (recipe_id, start_date, end_date, blurb)
+  - `PATCH /api/admin/highlights/:id`
+  - `DELETE /api/admin/highlights/:id`
+  - Admin role required (re-use `requireRole('Administrator')` from B01)
+- **Accept**: Admin can curate the "Editor's Picks" strip shown on Home; active selections appear in B12's `featured` array.
 - **Dep**: B01, B02
+
+## B19 · Flavor Profile / Affinity API [M]
+- **Do**: `routes/flavor-profile.js` (or mount under `/api/users/:id/flavor-profile`)
+  - `GET /api/users/:id/flavor-profile` — reads `Has_tag_pref` (tag_id, weight) for the user
+  - `PUT /api/users/:id/flavor-profile` — self only, upsert weights for tags the user explicitly selects
+  - `POST /api/users/:id/flavor-profile/infer` — auto-infer: update `Has_tag_pref` weights from the user's `Logs_Cook` history and favorites. Implements affinity SQL from design §3.3.2.
+  - `GET /api/users/:id/recommendations` — ranked recipes by tag-weight dot product (used by B12)
+- **Accept**: Editing the profile on the Profile>Flavor Profile tab persists; cook-logging new recipes nudges the profile on next `infer` call; recommendations reflect the change.
+- **Dep**: B01, B02, B20
+
+## B20 · Cook Log API [S]
+- **Do**: `routes/cook-log.js` (or mount under `/api/users/:id/cook-log`)
+  - `POST /api/users/:id/cook-log` — self only; body `{ recipe_id, cooked_at?, notes? }` — writes `Logs_Cook`
+  - `GET /api/users/:id/cook-log` — list with recipe joins, pagination
+  - `DELETE /api/users/:id/cook-log/:entryId` — own only
+- **Accept**: "I Cooked This" button on RecipeDetail creates a row; Profile>Cook Log tab shows history; duplicates within the same day allowed (tracked separately).
+- **Dep**: B01, B02
+
+## B21 · Recipe_Media multi-asset API [S]
+- **Do**: Fold into `routes/recipes.js`
+  - `GET /api/recipes/:id/media` — list
+  - `POST /api/recipes/:id/media` — author only; body `{ url, media_type: 'image'|'video', is_thumbnail? }`. URL is a plain text field (matches mockup).
+  - `PATCH /api/recipes/:id/media/:mediaId` — toggle `is_thumbnail`, reorder
+  - `DELETE /api/recipes/:id/media/:mediaId`
+  - Exactly one media row per recipe may have `is_thumbnail = TRUE` (enforced in handler)
+- **Accept**: Recipe can have multiple images + videos; the thumbnail shows on RecipeCard; deleting the thumbnail auto-promotes the next media row.
+- **Dep**: B01, B02, B04
+
+## B22 · Allows_Substitution management API [S]
+- **Do**: Fold into `routes/recipes.js`
+  - `GET /api/recipes/:id/substitutions` — list rows from `Allows_Substitution` for this recipe
+  - `POST /api/recipes/:id/substitutions` — author only; body `{ ingredient_id, substitute_ingredient_id }`. Blocked by D04 trigger if the two are equal.
+  - `DELETE /api/recipes/:id/substitutions/:subId` — author only
+- **Accept**: Recipe owner controls which swaps B06 will offer for their recipe; attempting to allow the same ingredient as its own substitute returns 400/409 (caught from D04 trigger).
+- **Dep**: B01, B02, B04, D04
 
 ---
 
@@ -163,7 +250,7 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 
 ## B07 · Orders API [L]
 - **Do**: `routes/orders.js`
-  - `POST /api/orders` — transactional: insert `Order` + `Order_Item[]`; royalty trigger fires automatically
+  - `POST /api/orders` — transactional: insert `Order` + `Order_Item[]`; royalty trigger fires automatically. Body matches the `Order` table columns declared in the design report (no shipping-address invention).
   - `GET /api/orders/mine` — customer history
   - `GET /api/orders/supplier` — incoming orders for logged-in supplier
   - `PATCH /api/orders/:id/status` — supplier only; pending → fulfilled → shipped → completed
@@ -195,14 +282,14 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 ## B14 · Mount routes + CORS + error handler [S]
 - **Do**: Wire every new route module into `backend/src/app.js`; add global error middleware; verify CORS permits `http://localhost:5173`.
 - **Accept**: Frontend in the browser can `GET /api/recipes` without CORS error; unhandled exception returns a JSON body, not a stack trace.
-- **Dep**: B03–B13
+- **Dep**: B03–B13, B18–B22
 
 ---
 
 # Frontend Shared Infrastructure (do early, benefits everyone)
 
 ## F01 · API client layer [S]
-- **Do**: `frontend/src/api/client.js` — axios instance with `baseURL = http://localhost:3001/api` and an auth interceptor reading the token from localStorage. Create one file per resource: `api/auth.js`, `recipes.js`, `ingredients.js`, `substitutions.js`, `orders.js`, `suppliers.js`, `challenges.js`, `users.js`, `reviews.js`, `highlights.js`, `admin.js`.
+- **Do**: `frontend/src/api/client.js` — axios instance with `baseURL = http://localhost:3001/api` and an auth interceptor reading the token from localStorage. Create one file per resource: `api/auth.js`, `recipes.js`, `ingredients.js`, `substitutions.js`, `orders.js`, `suppliers.js`, `challenges.js`, `users.js`, `reviews.js`, `highlights.js`, `admin.js`, `cookLog.js`, `flavorProfile.js`.
 - **Accept**: No React component imports axios directly — everything goes through `api/*`.
 - **Dep**: B03
 
@@ -221,61 +308,88 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
   - `RecipeCard`, `RecipeGrid`
   - `FilterSidebar` (URL-param synced)
   - `StarRating`
-  - `ImageUploader`
+  - `ImageUrlInput` — plain text input that validates URL shape and previews the image (design report mockup shows URL input, not a file uploader)
   - `IngredientRow`, `StepRow` (used in CreateRecipe and RecipeDetail)
   - `LoadingSpinner`, `EmptyState`, `Pagination`
   - `Toast`, `ConfirmModal`
 - **Accept**: Each component used in at least 2 pages; no inline styles — Tailwind only.
 - **Dep**: F01
 
+## F06 · Global error / toast wiring [S]
+- **Do**: Add a response interceptor to `api/client.js` that catches non-2xx responses and dispatches a `Toast` with the `error` field. Provide a `ToastProvider` at the App root so any component can `toast.success()` / `toast.error()`.
+- **Accept**: A 409 "Email already exists" from register shows a red toast automatically; no component has to `try/catch` for UX.
+- **Dep**: F01, F04
+
+## F07 · NotFound page + ErrorBoundary [S]
+- **Do**: `pages/NotFound.jsx` (simple 404 UI with link home). Add catch-all `<Route path="*" element={<NotFound />} />` in `App.jsx`. Wrap `<Routes>` in an `ErrorBoundary` component that shows a friendly fallback on render crashes.
+- **Accept**: Visiting `/does-not-exist` shows the NotFound page; a thrown render error shows the fallback, not a blank screen.
+- **Dep**: F01
+
+## F08 · SubstitutionManager component [S]
+- **Do**: `components/SubstitutionManager.jsx` — used inside CreateRecipe (P04) and RecipeDetail (P03, author view only). Lets the recipe owner pick, per ingredient, which substitute ingredients are allowed. Writes to `Allows_Substitution` via B22.
+- **Accept**: Owner can add/remove swap permissions; selector prevents picking the same ingredient as its substitute (backed by D04 trigger).
+- **Dep**: F04, B22
+
 ---
 
 # L4 — Frontend Consumer Pages
 
 ## P01 · Home page [M]
-- **Do**: `pages/Home.jsx` — hero banner, "Trending now" grid, "Recommended for you" grid (logged-in only), active-challenges strip. Wire to `/api/highlights/home`.
-- **Accept**: Logged-out users see trending only; logged-in users see personalized row.
+- **Do**: `pages/Home.jsx` — hero banner, "Editor's Picks" strip (admin-curated Featured_Selection), "Trending now" grid, "Recommended for you" grid (logged-in only, affinity-ranked), active-challenges strip. Wire to `/api/highlights/home`.
+- **Accept**: Logged-out users see featured + trending; logged-in users additionally see personalized row driven by flavor profile.
 - **Dep**: F04, B12
 
 ## P02 · Recipes discovery page [L]
-- **Do**: `pages/Recipes.jsx` — left `FilterSidebar` reading/writing URL params from Navbar dropdown; right `RecipeGrid` with pagination; loading + empty states.
-- **Accept**: Clicking "Italian" in Navbar lands on `/recipes?cuisine=italian` and filters correctly; pagination updates URL.
+- **Do**: `pages/Recipes.jsx` — left `FilterSidebar` reading/writing URL params from Navbar dropdown (including prep/cook-time range sliders); right `RecipeGrid` with pagination; loading + empty states.
+- **Accept**: Clicking "Italian" in Navbar lands on `/recipes?cuisine=italian` and filters correctly; time-range slider filters via `min_time` / `max_time`; pagination updates URL.
 - **Dep**: F04, B04
 
 ## P03 · RecipeDetail page [L]
 - **Do**: `pages/RecipeDetail.jsx`
-  - Hero image + meta (time, servings, difficulty)
+  - Hero media carousel (images + videos from `Recipe_Media`)
+  - Meta (time, servings, difficulty)
   - Ingredients list and numbered steps
   - Reviews section with `StarRating` + submit form
-  - **Shop This Meal** button → opens `SubstitutionPicker` modal → "Add to Cart" writes to localStorage
+  - **Shop This Meal** button → opens `SubstitutionPicker` (F05) → "Add to Cart" writes to localStorage
   - **Fork Recipe** button → navigates to `/create?fork=:id`
+  - **I Cooked This** button → posts to `/api/users/:id/cook-log` (B20)
   - Royalty attribution badge if `parent_recipe_id` is set
-- **Accept**: All CTAs work; cart persists across navigation; fork chain visible on forked recipes.
-- **Dep**: F04, B04, B06, B10, F05
+  - Author-only: inline `SubstitutionManager` (F08) to curate allowed swaps
+- **Accept**: All CTAs work; cart persists across navigation; fork chain visible on forked recipes; "I Cooked This" shows confirmation and later appears in Profile>Cook Log.
+- **Dep**: F04, B04, B06, B10, B20, B21, F05, F08
 
 ## P04 · CreateRecipe page [L]
 - **Do**: Complete `pages/CreateRecipe.jsx`
-  - **FORM CARD**: title, description, cover image (ImageUploader), ingredient repeater (with `/api/ingredients/search` autocomplete), step repeater, tags (category/cuisine/diet/meal/dish-type), difficulty, prep time, cook time, servings
+  - **FORM CARD**: title, description, cover image (`ImageUrlInput`), media manager (add more image/video URLs with `Recipe_Media` is_thumbnail toggle), ingredient repeater (with `/api/ingredients/search` autocomplete), step repeater, tags (category/cuisine/diet/meal/dish-type), difficulty, prep time, cook time, servings, `SubstitutionManager` section
   - **DETAILS CARD**: publish toggle, tips, "Save Draft" / "Publish" buttons
   - Support `?fork=:id` query param — prefill from source recipe
-  - Submit → `POST /api/recipes`
-- **Accept**: Can create from scratch and fork; validation errors show inline; success redirects to RecipeDetail.
-- **Dep**: F04, B04, B05
+  - Submit → `POST /api/recipes` (one transactional call handles recipe + ingredients + steps + tags + media + substitutions)
+- **Accept**: Can create from scratch and fork; validation errors show inline; success redirects to RecipeDetail; forked recipe preserves allowed-substitution rows unless the user edits them.
+- **Dep**: F04, B04, B05, B21, B22, F08
 
 ## P07 · Profile page [M]
 - **Do**: Replace placeholder in `pages/Profile.jsx`
-  - Header: avatar, bio, follow button (others' profiles)
-  - Tabs: **My Recipes** · **Favorites** · **Orders** · **Royalties** (chefs only)
+  - Header: avatar, bio
+  - Tabs: **My Recipes** · **Meal Lists** · **Cook Log** · **Orders** · **Flavor Profile** · **Royalties** (chefs only — includes Royalty Statistics and Recipe Performance reports from design §3.4.2, satisfying CS353 2-reports grading criterion)
   - Edit-profile modal
-- **Accept**: All tabs populate from API; edit persists to DB.
-- **Dep**: F04, B04, B07, B09
+- **Accept**: All tabs populate from API; edit persists to DB; chef's Royalties tab shows both the aggregate royalty statistics and per-recipe performance rows.
+- **Dep**: F04, B04, B07, B09, B20
+
+## P13 · Profile > Flavor Profile tab [S]
+- **Do**: Inside `pages/Profile.jsx` implement the Flavor Profile tab (design §3.3.2)
+  - Read `/api/users/:id/flavor-profile` — show current tag weights as sliders / chips
+  - Let user manually adjust weights (save → PUT)
+  - "Refresh from my cook log" button → POST to `/flavor-profile/infer`
+  - Explanation panel: "Your flavor profile drives the Recommended for You row on Home."
+- **Accept**: Editing weights changes Home recommendations next visit; infer button observably updates weights after a fresh cook-log entry.
+- **Dep**: F04, B19, B20, P07
 
 ---
 
 # L5 — Frontend Commerce / Ops Pages
 
 ## P05 · Checkout page [M]
-- **Do**: `pages/Checkout.jsx` — reads cart from localStorage, groups items by supplier, shipping address form, "Place Order" → `POST /api/orders` → clear cart → redirect to confirmation.
+- **Do**: `pages/Checkout.jsx` — reads cart from localStorage, groups items by supplier, "Place Order" → `POST /api/orders` → clear cart → redirect to confirmation.
 - **Accept**: Order appears in Profile > Orders and in SupplierOrders; royalty visible on chef's profile afterward.
 - **Dep**: F04, B07, P03
 
@@ -300,13 +414,18 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 - **Dep**: F04, B07
 
 ## P11 · AdminPanel [M]
-- **Do**: `pages/AdminPanel.jsx` — tabs: **Pending Chef Approvals** (approve/reject) · **Reports** (moderate content) · **Users** (view/suspend).
-- **Accept**: Chef approval flips verification status and unlocks Create access for that user.
+- **Do**: `pages/AdminPanel.jsx` — tabs: **Pending Chef Approvals** (approve/reject) · **Content Moderation** · **Ingredients** (add/edit/delete) · **Users** (view/suspend).
+- **Accept**: Chef approval flips verification status and unlocks Create access for that user; ingredient CRUD round-trips through B11.
 - **Dep**: F04, B11
+
+## P12 · AdminHighlights page [S]
+- **Do**: `pages/AdminHighlights.jsx` (or additional tab on P11) — admin curates `Featured_Selection`: add recipe, set active window, write blurb, deactivate. Pulls from `GET /api/admin/highlights` (B18).
+- **Accept**: Rows created here appear in the Home "Editor's Picks" strip the next refresh; inactive rows disappear after end_date.
+- **Dep**: F04, B18
 
 ## F05 · SubstitutionPicker component [M]
 - **Do**: `components/SubstitutionPicker.jsx` — modal showing per-ingredient supplier options + substitute alternatives from `/api/substitutions/plan`. "Add all to cart" action.
-- **Accept**: Shows prices and availability; disabled for out-of-stock items.
+- **Accept**: Shows prices and availability; disabled for out-of-stock items; only alternatives permitted by the recipe's `Allows_Substitution` appear.
 - **Dep**: F04, B06
 
 ---
@@ -318,10 +437,11 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 | X01 | `.gitignore` audit + `.env.example` kept in sync | S | Dev A |
 | X02 | `README.md` — setup, DB init, run instructions, architecture overview | M | Dev A |
 | X03 | Postman / Thunder Client collection for all API endpoints | S | Dev B |
-| X04 | End-to-end smoke test checklist: register → browse → fork → Shop This Meal → order → supplier fulfill → royalty visible | S | Dev D |
+| X04 | End-to-end smoke test checklist: register → browse → fork → Shop This Meal → order → supplier fulfill → royalty visible → cook log → flavor profile updates | S | Dev D |
 | X05 | Demo script + in-group rehearsal | S | Tolga (lead) |
 | X06 | Final report update (post-implementation deltas, if required) | M | Tolga + Dev C |
 | X07 | Screenshots / screen recording for submission | S | Dev E |
+| X08 | Shared tag-constants file (single source for cuisine/diet/category/meal/dish-type values used in Navbar + filter UI + backend filter endpoint) | S | Dev B |
 
 ---
 
@@ -332,8 +452,11 @@ These advanced DB components must be reachable from the UI. Each team member con
 - [ ] `Recipe_Summary` view — used by P02 Recipes discovery and B12 home feed
 - [ ] `Supplier_Stock_Status` view — used by P08 SupplierDashboard and F05 SubstitutionPicker
 - [ ] `trg_update_royalty_on_order` trigger — fires on P05 Checkout; royalty surfaced on P07 Profile > Royalties
+- [ ] `trg_allows_substitution_check` trigger (D04) — blocks equal ingredient/substitute writes from B22 / F08
 - [ ] Transactions — recipe create (B04), recipe fork (B04), order placement (B07), chef approval (B11)
 - [ ] Every SQL query from design report §3 is reachable from a UI action
+- [ ] Two reports (design §3.4.2): Royalty Statistics + Recipe Performance — both rendered on P07 Royalties tab
+- [ ] Range query + flexible LIKE query — P02 prep/cook-time slider (range) + B05 ingredient autocomplete (LIKE)
 
 ---
 
@@ -347,6 +470,7 @@ B01 Auth ──► B02 DB utils ──► all other B##
                                └──► F04 UI kit ─────────────────────────► all P##
 
 D01 Seed ─► every page + demo
+D04 Constraint trigger ─► B22 / F08
 ```
 
 **Critical path** — start these immediately, they unblock everyone else:
@@ -357,25 +481,25 @@ D01 Seed ─► every page + demo
 # Suggested 3-sprint plan (~3 weeks)
 
 ### Sprint 1 — Unblock everything
-- Dev A: B01, B02, B03, D01
-- Dev B: B04 (GET endpoints first)
+- Dev A: B01, B02, B03, **B15**, D01, **D04**
+- Dev B: B04 (GET endpoints first), **X08**
 - Dev C: B14 stub (routes mounted but empty)
-- Dev D: F01, F02, F03, F04
+- Dev D: F01, F02, F03, F04, **F07**
 - Dev E: P10 skeleton
 
 ### Sprint 2 — Core loops
-- Dev A: B09, D02
-- Dev B: B04 (write endpoints), B05, B06
+- Dev A: B09, **B17**, D02
+- Dev B: B04 (write endpoints), B05, B06, **B21**, **B22**
 - Dev C: B07, B08
-- Dev D: P02, P03, P04
+- Dev D: P02, P03, P04, **F06**, **F08**
 - Dev E: P05, P09, P10 (finish)
 
-### Sprint 3 — Ops + polish
+### Sprint 3 — Ops + polish + design-report extras
 - Dev A: B11, X02
-- Dev B: B10, B12
+- Dev B: B10, **B18**, **B19**, **B20**, B12, **D03**
 - Dev C: B13
-- Dev D: P01, P07
-- Dev E: P06, P08, P11, F05, X07
+- Dev D: P01, P07, **P13**
+- Dev E: P06, P08, P11, **P12**, F05, X07
 - Everyone: X04, X05
 
 ---
@@ -399,10 +523,19 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] B12 · Home highlights feed
 - [ ] B13 · Challenges API
 - [ ] B14 · Mount routes + CORS + error handler
+- [ ] B15 · Password hashing (bcrypt)
+- [ ] B17 · Request validation middleware
+- [ ] B18 · Highlights admin API (Featured_Selection CRUD)
+- [ ] B19 · Flavor Profile / Affinity API
+- [ ] B20 · Cook Log API
+- [ ] B21 · Recipe_Media multi-asset API
+- [ ] B22 · Allows_Substitution management API
 
 ### Database
 - [ ] D01 · Seed script
 - [ ] D02 · DB reset script
+- [ ] D03 · Design-report §3 query map + table-coverage audit
+- [ ] D04 · is_ingrd_different trigger
 
 ### Frontend shared
 - [ ] F01 · API client layer
@@ -410,6 +543,9 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] F03 · Route guards
 - [ ] F04 · Shared UI kit
 - [ ] F05 · SubstitutionPicker component
+- [ ] F06 · Global error / toast wiring
+- [ ] F07 · NotFound page + ErrorBoundary
+- [ ] F08 · SubstitutionManager component
 
 ### Pages
 - [ ] P01 · Home
@@ -423,6 +559,8 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] P09 · SupplierInventory
 - [ ] P10 · SupplierOrders
 - [ ] P11 · AdminPanel
+- [ ] P12 · AdminHighlights
+- [ ] P13 · Profile > Flavor Profile tab
 
 ### Cross-cutting
 - [ ] X01 · .gitignore / .env.example audit
@@ -432,16 +570,20 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] X05 · Demo rehearsal
 - [ ] X06 · Final report update
 - [ ] X07 · Screenshots / recording
+- [ ] X08 · Shared tag-constants file
 
 ### DB features exercised
 - [ ] `Recipe_Summary` view reachable from UI
 - [ ] `Supplier_Stock_Status` view reachable from UI
 - [ ] `trg_update_royalty_on_order` trigger fires from UI
+- [ ] `trg_allows_substitution_check` trigger blocks equal-ingredient writes
 - [ ] Transactions used on all multi-row inserts
 - [ ] Every design-report §3 SQL query reachable
+- [ ] 2 reports rendered on P07 Royalties tab (Royalty Statistics + Recipe Performance)
+- [ ] Range query + flexible LIKE query reachable from UI
 
 ---
 
-**Total tasks: 45** (14 backend + 2 DB + 5 frontend-shared + 11 pages + 7 cross-cutting + 6 DB-feature checks)
+**Total tasks: 54** (21 backend + 4 DB + 8 frontend-shared + 13 pages + 8 cross-cutting) · plus 8 DB-feature grading checks
 
 When every checkbox above is ticked, RecipeRoom is finalized.
