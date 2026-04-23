@@ -1,64 +1,5 @@
 import { Link } from 'react-router-dom';
-
-const megaMenuData = {
-  Popular: [
-    'Comfort Food',
-    'Quick & Easy',
-    'Seasonal',
-    'One-Pot',
-    'Healthy',
-    'Salad',
-    'Sauces & Dressings'
-  ],
-  Meal: [
-    'Breakfast',
-    'Brunch',
-    'Lunch',
-    'Dinner',
-    'Dessert',
-    'Snack'
-  ],
-  Diet: [
-    'Vegetarian',
-    'Low-Carb',
-    'Dairy-Free',
-    'Vegan',
-    'Keto',
-    'Gluten-Free',
-    'Nut-Free',
-    'Paleo'
-  ],
-  Ingredient: [
-    'Chicken',
-    'Beef',
-    'Rice',
-    'Tofu & Tempeh',
-    'Salmon',
-    'Pork',
-    'Fish & Seafood',
-    'Potatoes'
-  ],
-  'Dish Type': [
-    'Side Dish',
-    'Appetizers',
-    'Pasta',
-    'Sandwiches & Wraps',
-    'Drinks',
-    'Soups & Stews',
-    'Spreads & Dips',
-    'Bread'
-  ],
-  Cuisine: [
-    'Turkish',
-    'American',
-    'Asian',
-    'Middle Eastern',
-    'Korean',
-    'Spanish',
-    'Italian',
-    'Mediterranean'
-  ]
-};
+import { RECIPE_DROPDOWN } from '../constants/tags';
 
 const columnsWithViewAll = ['Ingredient', 'Dish Type', 'Cuisine'];
 
@@ -84,9 +25,9 @@ export default function MegaMenu({ isOpen, onClose, onMouseEnter, onMouseLeave }
       onMouseLeave={onMouseLeave}
     >
       <div className="grid grid-cols-6">
-        {Object.entries(megaMenuData).map(([columnName, items], idx) => (
+        {RECIPE_DROPDOWN.map(({ title, param, options }, idx) => (
           <div
-            key={columnName}
+            key={title}
             className={`
               ${idx === 0 ? 'pl-0' : 'pl-9'}
               ${idx === 5 ? 'pr-0 border-r-0' : 'pr-9 border-r border-[#F0F0F0]'}
@@ -96,25 +37,25 @@ export default function MegaMenu({ isOpen, onClose, onMouseEnter, onMouseLeave }
               className="text-[15px] font-bold text-[#1A1A1A] pb-4 mb-2 border-b-[1.5px] border-[#E0E0E0]"
               style={{ letterSpacing: '-0.01em' }}
             >
-              {columnName}
+              {title}
             </div>
 
             <div>
-              {items.map((item) => (
+              {options.map(({ label, value }) => (
                 <Link
-                  key={item}
-                  to={`/recipes?category=${encodeURIComponent(item)}`}
+                  key={value}
+                  to={`/recipes?${param}=${encodeURIComponent(value)}`}
                   onClick={onClose}
                   className="block text-[14px] font-normal text-[#555555] py-2.5 leading-none transition-all duration-[140ms] hover:text-[#1B3A2D] hover:font-medium hover:pl-[6px] whitespace-nowrap"
                   style={{ letterSpacing: '0.005em' }}
                 >
-                  {item}
+                  {label}
                 </Link>
               ))}
 
-              {columnsWithViewAll.includes(columnName) && (
+              {columnsWithViewAll.includes(title) && (
                 <Link
-                  to={`/recipes?section=${encodeURIComponent(columnName)}`}
+                  to={`/recipes?${param}=all`}
                   onClick={onClose}
                   className="inline-flex items-center gap-1 mt-3.5 pt-3 border-t border-[#F0F0F0] text-[13px] font-semibold text-[#1B3A2D] hover:text-[#F5C518] transition-colors duration-150"
                   style={{ letterSpacing: '0.01em' }}

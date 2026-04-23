@@ -111,19 +111,19 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         {/* Header */}
         <div className="flex justify-between items-center p-6 pb-2">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Welcome to Recipe Room</h2>
-            <p className="text-sm text-gray-500 mt-1">Sign in to create and share recipes with the world</p>
+            <h2 className="text-xl font-semibold text-[#1A1A1A]">Welcome to Recipe Room</h2>
+            <p className="text-sm text-[#6B6B6B] mt-1">Sign in to create and share recipes with the world</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">
+          <button onClick={onClose} className="text-[#9E9E9E] hover:text-[#6B6B6B] text-xl">
             &times;
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex mx-6 mt-4 bg-gray-100 rounded-lg p-1">
+        <div className="flex mx-6 mt-4 bg-[#FAF8F5] rounded-lg p-1">
           <button
             className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-              tab === 'signin' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+              tab === 'signin' ? 'bg-white shadow text-[#1A1A1A]' : 'text-[#6B6B6B]'
             }`}
             onClick={() => { setTab('signin'); setError(''); }}
           >
@@ -131,7 +131,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
           </button>
           <button
             className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-              tab === 'signup' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+              tab === 'signup' ? 'bg-white shadow text-[#1A1A1A]' : 'text-[#6B6B6B]'
             }`}
             onClick={() => { setTab('signup'); setError(''); }}
           >
@@ -149,25 +149,25 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         {tab === 'signin' && (
           <form onSubmit={handleSignIn} className="p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Email</label>
               <input
                 type="email"
                 placeholder="you@example.com"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Password</label>
               <input
                 type="password"
                 placeholder="••••••••"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <button
@@ -185,103 +185,103 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
           <form onSubmit={handleSignUp} className="p-6 space-y-4">
             {userType === 'Local Supplier' ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+                <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Business Name</label>
                 <input
                   type="text"
                   placeholder="Your business name"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                 />
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Name</label>
                 <input
                   type="text"
                   placeholder="Your name"
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">I am a...</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">I am a...</label>
               <select
                 value={userType}
                 onChange={(e) => setUserType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               >
                 <option>Home Cook</option>
                 <option>Chef (Professional)</option>
                 <option>Local Supplier</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">{userTypeDescription[userType]}</p>
+              <p className="text-xs text-[#6B6B6B] mt-1">{userTypeDescription[userType]}</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Email</label>
               <input
                 type="email"
                 placeholder="you@example.com"
                 value={registerEmail}
                 onChange={(e) => setRegisterEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
 
             {userType === 'Local Supplier' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
+                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Contact Number</label>
                   <input
                     type="text"
                     placeholder="+1 (555) 123-4567"
                     value={contactNumber}
                     onChange={(e) => setContactNumber(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Business Address</label>
+                  <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Business Address</label>
                   <input
                     type="text"
                     placeholder="123 Farm Road, City, State, ZIP"
                     value={businessAddress}
                     onChange={(e) => setBusinessAddress(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Password</label>
               <input
                 type="password"
                 placeholder="••••••••"
                 value={registerPassword}
                 onChange={(e) => setRegisterPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <label className="block text-sm font-medium text-[#1A1A1A] mb-1">Confirm Password</label>
               <input
                 type="password"
                 placeholder="••••••••"
                 value={registerConfirm}
                 onChange={(e) => setRegisterConfirm(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[#D0D0D0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
 

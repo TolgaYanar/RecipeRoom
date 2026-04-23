@@ -16,9 +16,9 @@ export default class ErrorBoundary extends Component {
       return (
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
-            <h1 className="text-6xl font-bold text-gray-200 mb-4">Oops</h1>
-            <p className="text-gray-500 text-lg mb-6">Something went wrong. Please try refreshing the page.</p>
-            <Link to="/" className="text-amber-600 hover:underline text-sm">← Back to Home</Link>
+            <h1 className="text-6xl font-bold text-[#EBEBEB] mb-4">Oops</h1>
+            <p className="text-[#6B6B6B] text-lg mb-6">Something went wrong. Please try refreshing the page.</p>
+            <Link to="/" className="text-[#1B3A2D] hover:underline text-sm">← Back to Home</Link>
           </div>
         </div>
       );

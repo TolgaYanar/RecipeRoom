@@ -28,10 +28,7 @@ export default function RecipeCard({ recipe }) {
   return (
     <Link
       to={`/recipes/${recipe_id}`}
-      className="group block bg-white border border-[#EBEBEB] rounded-xl overflow-hidden hover:-translate-y-[3px] transition-all duration-200"
-      style={{ boxShadow: 'none' }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.10)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+      className="group block bg-white border border-[#EBEBEB] rounded-xl overflow-hidden hover:-translate-y-[3px] hover:shadow-[0_8px_32px_rgba(0,0,0,0.10)] transition-all duration-200"
     >
       {/* Image — 4:3 ratio */}
       <div className="relative aspect-[4/3] overflow-hidden bg-[#FAF8F5]">
