@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
-export default function AuthModal({ isOpen, onClose, onLogin }) {
+export default function AuthModal({ isOpen, onClose }) {
+  const { login } = useAuth();
   const [tab, setTab] = useState('signin');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         email: loginEmail,
         password: loginPassword,
       });
-      onLogin(res.data);
+      login(res.data);
       resetForm();
       onClose();
     } catch (err) {
@@ -95,7 +97,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         email: registerEmail,
         password: registerPassword,
       });
-      onLogin(loginRes.data);
+      login(loginRes.data);
       resetForm();
       onClose();
     } catch (err) {

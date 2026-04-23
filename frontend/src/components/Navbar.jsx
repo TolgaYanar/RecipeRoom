@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { TbSoupFilled } from "react-icons/tb";
+import { useAuth } from '../context/AuthContext';
 
 const recipeDropdown = [
   {
@@ -79,7 +80,8 @@ const recipeDropdown = [
   }
 ]
 
-export default function Navbar({ user, onSignInClick, onLogout}) {
+export default function Navbar() {
+  const { user, logout, openAuth } = useAuth();
   const location = useLocation();
   const path = location.pathname;
 
@@ -167,7 +169,7 @@ export default function Navbar({ user, onSignInClick, onLogout}) {
                 {user.username}
               </Link>
               <button
-                onClick={onLogout}
+                onClick={logout}
                 className="text-gray-400 hover:text-white text-sm transition"
               >
                 Logout
@@ -176,7 +178,7 @@ export default function Navbar({ user, onSignInClick, onLogout}) {
           </>
         ) : (
           <button
-            onClick={onSignInClick}
+            onClick={openAuth}
             className="border border-gray-500 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-gray-700 transition"
           >
             Sign In
