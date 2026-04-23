@@ -1,84 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { TbSoupFilled } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
-
-const recipeDropdown = [
-  {
-    title: 'Popular',
-    options: [
-      { label: 'Comfort Food', value: 'comfort-food' },
-      { label: 'Quick & Easy', value: 'quick-easy' },
-      { label: 'Seasonal', value: 'seasonal' },
-      { label: 'One Pot', value: 'one-pot' },
-      { label: 'Healthy', value: 'healthy' },
-      { label: 'Salad', value: 'salad' },
-      { label: 'Sauces & Dressings', value: 'sauces-dressings' },
-    ],
-  },
-  {
-    title: 'Meal',
-    options: [
-      { label: 'Breakfast', value: 'breakfast' },
-      { label: 'Brunch', value: 'brunch' },
-      { label: 'Lunch', value: 'lunch' },
-      { label: 'Dinner', value: 'dinner' },
-      { label: 'Dessert', value: 'dessert' },
-      { label: 'Snack', value: 'snack' },
-    ],
-  },
-  {
-    title: 'Diet',
-    options: [
-      { label: 'Vegetarian', value: 'vegetarian' },
-      { label: 'Low-Carb', value: 'low-carb' },
-      { label: 'Dairy-Free', value: 'dairy-free' },
-      { label: 'Vegan', value: 'vegan' },
-      { label: 'Keto', value: 'keto' },
-      { label: 'Gluten-Free', value: 'gluten-free' },
-      { label: 'Nut-Free', value: 'nut-free' },
-      { label: 'Paleo', value: 'paleo' },
-    ],
-  },
-  {
-    title: 'Ingredient',
-    options: [
-      { label: 'Chicken', value: 'chicken' },
-      { label: 'Beef', value: 'beef' },
-      { label: 'Rice', value: 'rice' },
-      { label: 'Tofu & Tempeh', value: 'tofu-tempeh' },
-      { label: 'Salmon', value: 'salmon' },
-      { label: 'Pork', value: 'pork' },
-      { label: 'Fish & Seafood', value: 'fish-seafood' },
-      { label: 'Potatoes', value: 'potatoes' },
-    ]
-  },
-  {
-    title: 'Dish Type',
-    options: [
-      { label: 'Side Dish', value: 'side-dish' },
-      { label: 'Appetizers', value: 'appetizers' },
-      { label: 'Pasta', value: 'pasta' },
-      { label: 'Sandwiches & Wraps', value: 'sandwiches-wraps' },
-      { label: 'Drinks', value: 'drinks' },
-      { label: 'Soups & Stews', value: 'soups-stews' },
-      { label: 'Spreads & Dips', value: 'spreads-dips' },
-      { label: 'Bread', value: 'bread' },
-    ]
-  },
-  {
-    title: 'Cuisine',
-    options: [
-      { label: 'Turkish', value: 'turkish' },
-      { label: 'American', value: 'american' },
-      { label: 'Asian', value: 'asian' },
-      { label: 'Middle Eastern', value: 'middle-eastern' },
-      { label: 'Korean', value: 'korean' },
-      { label: 'Spanish', value: 'spanish' },
-      { label: 'Italian', value: 'italian' },
-      { label: 'Mediterranean', value: 'mediterranean' },
-    ]
-  }
-]
+import { RECIPE_DROPDOWN } from '../constants/tags';
 
 export default function Navbar() {
   const { user, logout, openAuth } = useAuth();
@@ -100,14 +23,14 @@ export default function Navbar() {
             </Link>
             <div className="fixed left-0 right-0 top-[48px] hidden group-hover:block z-50">
               <div className="bg-white shadow-xl border-t border-gray-200 px-12 py-8 grid grid-cols-6 gap-6 max-w-screen">
-                {recipeDropdown.map((section) => (
+                {RECIPE_DROPDOWN.map((section) => (
                   <div key={section.title}>
                     <h3 className="text-gray-700 font-bold mb-3">{section.title}</h3>
                     <ul className="space-y-2">
                       {section.options.map((option) => (
                         <li key={option.value}>
                           <Link
-                            to={`/recipes?${section.title.toLowerCase()}=${option.value}`}
+                            to={`/recipes?${section.param}=${option.value}`}
                             className="text-gray-600 hover:text-green-950 text-sm transition"
 
                           >
