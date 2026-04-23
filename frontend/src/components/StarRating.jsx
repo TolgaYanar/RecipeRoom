@@ -13,7 +13,7 @@ export default function StarRating({ value = 0, max = 5, onChange, size = 'md' }
           key={i}
           type="button"
           disabled={!interactive}
-          className={`${sizeClass} transition ${i < display ? 'text-amber-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}
+          className={`${sizeClass} transition ${i < display ? 'text-[#F5C518]' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}
           onClick={() => onChange?.(i + 1)}
           onMouseEnter={() => interactive && setHover(i + 1)}
           onMouseLeave={() => interactive && setHover(null)}

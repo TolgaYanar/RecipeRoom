@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import axios from 'axios';
+import { login as apiLogin, registerHomeCook, registerChef, registerSupplier } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
-export default function AuthModal({ isOpen, onClose }) {
+export default function AuthModal({ isOpen, onClose, onLogin }) {
   const { login } = useAuth();
   const [tab, setTab] = useState('signin');
   const [error, setError] = useState('');
@@ -46,11 +46,8 @@ export default function AuthModal({ isOpen, onClose }) {
     setLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:3001/api/auth/login', {
-        email: loginEmail,
-        password: loginPassword,
-      });
-      login(res.data);
+      const data = await apiLogin(loginEmail, loginPassword);
+      (onLogin ?? login)(data);
       resetForm();
       onClose();
     } catch (err) {
@@ -72,32 +69,24 @@ export default function AuthModal({ isOpen, onClose }) {
     setLoading(true);
 
     try {
-      let endpoint = '';
-      let body = {
-        username: registerName,
-        email: registerEmail,
-        password: registerPassword,
-      };
+      const base = { username: registerName, email: registerEmail, password: registerPassword };
 
       if (userType === 'Home Cook') {
-        endpoint = '/api/auth/register/home-cook';
+        await registerHomeCook(base);
       } else if (userType === 'Chef (Professional)') {
-        endpoint = '/api/auth/register/chef';
+        await registerChef(base);
       } else if (userType === 'Local Supplier') {
-        endpoint = '/api/auth/register/supplier';
-        body.business_name = businessName;
-        body.contact_number = contactNumber;
-        body.address = businessAddress;
+        await registerSupplier({
+          ...base,
+          username: businessName,
+          business_name: businessName,
+          contact_number: contactNumber,
+          address: businessAddress,
+        });
       }
 
-      await axios.post(`http://localhost:3001${endpoint}`, body);
-
-      // Auto-login after register
-      const loginRes = await axios.post('http://localhost:3001/api/auth/login', {
-        email: registerEmail,
-        password: registerPassword,
-      });
-      login(loginRes.data);
+      const data = await apiLogin(registerEmail, registerPassword);
+      (onLogin ?? login)(data);
       resetForm();
       onClose();
     } catch (err) {
@@ -167,7 +156,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <div>
@@ -178,13 +167,13 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 transition"
+              className="w-full py-2.5 bg-[#1B3A2D] text-white rounded-lg font-medium hover:bg-[#2D5A42] disabled:opacity-50 transition"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
@@ -203,7 +192,7 @@ export default function AuthModal({ isOpen, onClose }) {
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                 />
               </div>
             ) : (
@@ -215,7 +204,7 @@ export default function AuthModal({ isOpen, onClose }) {
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                 />
               </div>
             )}
@@ -225,7 +214,7 @@ export default function AuthModal({ isOpen, onClose }) {
               <select
                 value={userType}
                 onChange={(e) => setUserType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               >
                 <option>Home Cook</option>
                 <option>Chef (Professional)</option>
@@ -242,7 +231,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={registerEmail}
                 onChange={(e) => setRegisterEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
 
@@ -256,7 +245,7 @@ export default function AuthModal({ isOpen, onClose }) {
                     value={contactNumber}
                     onChange={(e) => setContactNumber(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -267,7 +256,7 @@ export default function AuthModal({ isOpen, onClose }) {
                     value={businessAddress}
                     onChange={(e) => setBusinessAddress(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
                   />
                 </div>
               </>
@@ -281,7 +270,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={registerPassword}
                 onChange={(e) => setRegisterPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
             <div>
@@ -292,14 +281,14 @@ export default function AuthModal({ isOpen, onClose }) {
                 value={registerConfirm}
                 onChange={(e) => setRegisterConfirm(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B3A2D] focus:border-transparent"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 transition"
+              className="w-full py-2.5 bg-[#1B3A2D] text-white rounded-lg font-medium hover:bg-[#2D5A42] disabled:opacity-50 transition"
             >
               {loading ? 'Creating account...' : 'Sign Up'}
             </button>

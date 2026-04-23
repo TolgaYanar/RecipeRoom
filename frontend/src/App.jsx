@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRoute from './components/RoleRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
 import Recipes from './pages/Recipes';
 import RecipeDetail from './pages/RecipeDetail';
@@ -18,12 +19,13 @@ import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
 
 function App() {
-  const { showAuth, closeAuth } = useAuth();
+  const { showAuth, closeAuth, login } = useAuth();
 
   return (
     <>
       <Navbar />
-      <AuthModal isOpen={showAuth} onClose={closeAuth} />
+      <AuthModal isOpen={showAuth} onClose={closeAuth} onLogin={login} />
+      <ErrorBoundary>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/recipes" element={<Recipes />} />
@@ -68,6 +70,7 @@ function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </ErrorBoundary>
     </>
   );
 }
