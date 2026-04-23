@@ -28,18 +28,15 @@ Task ID prefixes:
 
 ---
 
-## Team swim lanes
+## Team swim lanes & owners
 
-Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01–F04) is collaborative.
-
-| Lane | Focus | Owns task IDs |
-|---|---|---|
-| **L1 — Backend Core & Auth** | Auth, users, admin, DB utils, seed, security, validation | B01–B03, B09, B11, B15, B17, D01, D02, D04 |
-| **L2 — Backend Recipes & Content** | Recipes, ingredients, substitutions, reviews, highlights, media, cook logs, affinity | B04, B05, B06, B10, B12, B18, B19, B20, B21, B22 |
-| **L3 — Backend Commerce & Ops** | Orders, suppliers, inventory, challenges | B07, B08, B13, B14 |
-| **L4 — Frontend Consumer Side** | Home, Recipes, RecipeDetail, CreateRecipe, Profile | P01, P02, P03, P04, P07, P13 |
-| **L5 — Frontend Commerce/Ops Side** | Checkout, Challenges, Supplier pages, Admin, SubstitutionPicker, Highlights admin | P05, P06, P08, P09, P10, P11, P12, F05, F08 |
-| **Shared** | API client, auth context, route guards, UI kit, global errors, 404, §3 query map, tag constants | F01, F02, F03, F04, F06, F07, D03, X08 |
+| Lane | Owner | Focus | Owns task IDs |
+|---|---|---|---|
+| **L1 — Backend Core & Auth** | Dev A | Auth, users, admin, DB utils, seed, security, validation | B01, B02, B03, B09, B11, B15, B17, D01, D02, D04 |
+| **L2 — Backend Recipes & Content** | Dev B | Recipes, ingredients, substitutions, reviews, highlights, media, cook logs, affinity | B04, B05, B06, B10, B12, B18, B19, B20, B21, B22 |
+| **L3 — Backend Commerce & Ops** | Dev C | Orders, suppliers, inventory, challenges, route mounting | B07, B08, B13, B14 |
+| **Shared — Frontend↔Backend bridge** | Dev D | API client, auth context, route guards, UI kit, toast, 404, §3 query map, tag constants | F01, F02, F03, F04, F06, F07, D03, X08 |
+| **L4 + L5 — All Frontend Pages** | **Dev E (lead)** | Every page + page-level components | P01–P13 + F05 + F08 |
 
 ---
 
@@ -436,12 +433,12 @@ Each lane is a cohesive area of ownership. Assign one per dev; shared work (F01�
 |---|---|---|---|
 | X01 | `.gitignore` audit + `.env.example` kept in sync | S | Dev A |
 | X02 | `README.md` — setup, DB init, run instructions, architecture overview | M | Dev A |
-| X03 | Postman / Thunder Client collection for all API endpoints | S | Dev B |
-| X04 | End-to-end smoke test checklist: register → browse → fork → Shop This Meal → order → supplier fulfill → royalty visible → cook log → flavor profile updates | S | Dev D |
-| X05 | Demo script + in-group rehearsal | S | Tolga (lead) |
-| X06 | Final report update (post-implementation deltas, if required) | M | Tolga + Dev C |
-| X07 | Screenshots / screen recording for submission | S | Dev E |
-| X08 | Shared tag-constants file (single source for cuisine/diet/category/meal/dish-type values used in Navbar + filter UI + backend filter endpoint) | S | Dev B |
+| X03 | Postman / Thunder Client collection for all API endpoints | S | Dev C |
+| X04 | End-to-end smoke test checklist: register → browse → fork → Shop This Meal → order → supplier fulfill → royalty visible → cook log → flavor profile updates | S | Dev E |
+| X05 | Demo script + in-group rehearsal | S | Dev E (lead) |
+| X06 | Final report update (post-implementation deltas, if required) | M | Dev E + Dev B |
+| X07 | Screenshots / screen recording for submission | S | Dev C |
+| X08 | Shared tag-constants file (single source for cuisine/diet/category/meal/dish-type values used in Navbar + filter UI + backend filter endpoint) | S | Dev D |
 
 ---
 
@@ -481,26 +478,26 @@ D04 Constraint trigger ─► B22 / F08
 # Suggested 3-sprint plan (~3 weeks)
 
 ### Sprint 1 — Unblock everything
-- Dev A: B01, B02, B03, **B15**, D01, **D04**
-- Dev B: B04 (GET endpoints first), **X08**
-- Dev C: B14 stub (routes mounted but empty)
-- Dev D: F01, F02, F03, F04, **F07**
-- Dev E: P10 skeleton
+- **Dev A (L1)**: B01, B02, B03, B15, D01, D04
+- **Dev B (L2)**: B04 (GET endpoints first)
+- **Dev C (L3)**: B14 stub (routes mounted but empty)
+- **Dev D (Shared)**: F01, F02, F03, F04, F07, X08 — delivering the UI kit unblocks Dev E on every page
+- **Dev E (FE)**: P04 scaffold (form layout, fields, buttons) — API wiring deferred to Sprint 2 once B05 / B21 / B22 / F08 land; P02 skeleton once F04 lands
 
 ### Sprint 2 — Core loops
-- Dev A: B09, **B17**, D02
-- Dev B: B04 (write endpoints), B05, B06, **B21**, **B22**
-- Dev C: B07, B08
-- Dev D: P02, P03, P04, **F06**, **F08**
-- Dev E: P05, P09, P10 (finish)
+- **Dev A (L1)**: B09, B11, B17, D02
+- **Dev B (L2)**: B04 (write endpoints), B05, B06, B21, B22
+- **Dev C (L3)**: B07, B08
+- **Dev D (Shared)**: F06, D03 audit started
+- **Dev E (FE)**: P01, P02 (finish), P03, P07, F08
 
 ### Sprint 3 — Ops + polish + design-report extras
-- Dev A: B11, X02
-- Dev B: B10, **B18**, **B19**, **B20**, B12, **D03**
-- Dev C: B13
-- Dev D: P01, P07, **P13**
-- Dev E: P06, P08, P11, **P12**, F05, X07
-- Everyone: X04, X05
+- **Dev A (L1)**: X01, X02
+- **Dev B (L2)**: B10, B12, B18, B19, B20, D03 (finish)
+- **Dev C (L3)**: B13, X03, X07
+- **Dev D (Shared)**: pairs with Dev E on any frontend gaps — available as extra hands if a page slips
+- **Dev E (FE)**: P05, P06, P08, P09, P10, P11, P12, P13, F05
+- **Everyone**: X04, X05, X06
 
 ---
 
