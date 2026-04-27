@@ -3,6 +3,7 @@ const router = express.Router();
 const { query, withTransaction } = require('../utils/db');
 const { JWT_SECRET } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 // LOGIN
 router.post('/login', async (req, res) => {
@@ -32,7 +33,8 @@ router.post('/login', async (req, res) => {
 
     const user = rows[0];
 
-    if (user.passwordHash !== password) {
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -66,11 +68,13 @@ router.post('/register/home-cook', async (req, res) => {
   try {
     const { username, email, password, target_daily_calories, primary_diet_goal } = req.body;
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await withTransaction(async (conn) => {
       const [insertResult] = await conn.execute(
         `INSERT INTO User (UserName, Email, passwordHash, join_date)
          VALUES (?, ?, ?, NOW())`,
-        [username, email, password]
+        [username, email, hashedPassword]
       );
 
       const userId = insertResult.insertId;
@@ -117,11 +121,13 @@ router.post('/register/chef', async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await withTransaction(async (conn) => {
       const [insertResult] = await conn.execute(
         `INSERT INTO User (UserName, Email, passwordHash, join_date)
          VALUES (?, ?, ?, NOW())`,
-        [username, email, password]
+        [username, email, hashedPassword]
       );
 
       const userId = insertResult.insertId;
@@ -168,11 +174,13 @@ router.post('/register/supplier', async (req, res) => {
   try {
     const { username, email, password, business_name, address, contact_number } = req.body;
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await withTransaction(async (conn) => {
       const [insertResult] = await conn.execute(
         `INSERT INTO User (UserName, Email, passwordHash, join_date)
          VALUES (?, ?, ?, NOW())`,
-        [username, email, password]
+        [username, email, hashedPassword]
       );
 
       const userId = insertResult.insertId;
