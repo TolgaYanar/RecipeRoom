@@ -4,9 +4,16 @@ const { query, withTransaction } = require('../utils/db');
 const { JWT_SECRET } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const {
+  validateUserLogin,
+  validateUserRegistration,
+  validateHomeCookRegistration,
+  validateSupplierRegistration,
+  validateAdminRegistration,
+} = require('../middleware/validation');
 
 // LOGIN
-router.post('/login', async (req, res) => {
+router.post('/login', validateUserLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -64,7 +71,7 @@ router.post('/login', async (req, res) => {
 });
 
 // REGISTER HOME COOK
-router.post('/register/home-cook', async (req, res) => {
+router.post('/register/home-cook', validateHomeCookRegistration, async (req, res) => {
   try {
     const { username, email, password, target_daily_calories, primary_diet_goal } = req.body;
 
@@ -117,7 +124,7 @@ router.post('/register/home-cook', async (req, res) => {
 });
 
 // REGISTER VERIFIED CHEF
-router.post('/register/chef', async (req, res) => {
+router.post('/register/chef', validateUserRegistration, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -170,7 +177,7 @@ router.post('/register/chef', async (req, res) => {
 });
 
 // REGISTER LOCAL SUPPLIER
-router.post('/register/supplier', async (req, res) => {
+router.post('/register/supplier', validateSupplierRegistration, async (req, res) => {
   try {
     const { username, email, password, business_name, address, contact_number } = req.body;
 
@@ -223,15 +230,17 @@ router.post('/register/supplier', async (req, res) => {
 });
 
 // REGISTER ADMIN
-router.post('/register/admin', async (req, res) => {
+router.post('/register/admin', validateAdminRegistration, async (req, res) => {
   try {
     const { username, email, password, admin_level } = req.body;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await withTransaction(async (conn) => {
       const [insertResult] = await conn.execute(
         `INSERT INTO User (UserName, Email, passwordHash, join_date)
          VALUES (?, ?, ?, NOW())`,
-        [username, email, password]
+        [username, email, hashedPassword]
       );
 
       const userId = insertResult.insertId;
