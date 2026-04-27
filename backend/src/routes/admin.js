@@ -1,27 +1,34 @@
 const express = require('express');
-const { query, withTransaction } = require('../utils/db');
-const { requireRole } = require('../middleware/auth');
+const { query } = require('../utils/db');
+const { requireLogin, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// All routes require Administrator role
-router.use(requireRole('Administrator'));
+// All routes require a valid login AND Administrator role
+router.use(requireLogin, requireRole('Administrator'));
 
-// GET /api/admin/pending-chefs — chefs with verification_status = 'PENDING'
+// GET /api/admin/pending-chefs
+// Schema has no pending state — all registered chefs are in Verified_Chef.
+// Returns all chefs so the admin panel can manage them.
 router.get('/pending-chefs', async (req, res) => {
   try {
-    const pendingChefs = await query(
-      'SELECT id, username, email, join_date FROM User WHERE user_type = "Chef" AND verification_status = "PENDING" ORDER BY join_date ASC'
+    const chefs = await query(
+      `SELECT u.user_id, u.UserName AS username, u.Email AS email, u.join_date,
+              vc.verification_date, vc.royalty_points
+       FROM Verified_Chef vc
+       JOIN User u ON vc.user_id = u.user_id
+       ORDER BY u.join_date ASC`
     );
 
-    res.json(pendingChefs);
+    res.json(chefs);
   } catch (err) {
-    console.error('Error fetching pending chefs:', err);
+    console.error('Error fetching chefs:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // POST /api/admin/chefs/:id/approve
+// Chef is already in Verified_Chef on registration — no state to flip.
 router.post('/chefs/:id/approve', async (req, res) => {
   try {
     const chefId = parseInt(req.params.id);
@@ -29,13 +36,9 @@ router.post('/chefs/:id/approve', async (req, res) => {
       return res.status(400).json({ error: 'Invalid chef ID' });
     }
 
-    const result = await query(
-      'UPDATE User SET verification_status = "VERIFIED" WHERE id = ? AND user_type = "Chef" AND verification_status = "PENDING"',
-      [chefId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Pending chef not found' });
+    const [chef] = await query('SELECT user_id FROM Verified_Chef WHERE user_id = ?', [chefId]);
+    if (!chef) {
+      return res.status(404).json({ error: 'Chef not found' });
     }
 
     res.json({ message: 'Chef approved successfully' });
@@ -46,6 +49,7 @@ router.post('/chefs/:id/approve', async (req, res) => {
 });
 
 // POST /api/admin/chefs/:id/reject
+// Revokes chef status by removing the Verified_Chef row.
 router.post('/chefs/:id/reject', async (req, res) => {
   try {
     const chefId = parseInt(req.params.id);
@@ -53,13 +57,10 @@ router.post('/chefs/:id/reject', async (req, res) => {
       return res.status(400).json({ error: 'Invalid chef ID' });
     }
 
-    const result = await query(
-      'UPDATE User SET verification_status = "REJECTED" WHERE id = ? AND user_type = "Chef" AND verification_status = "PENDING"',
-      [chefId]
-    );
+    const result = await query('DELETE FROM Verified_Chef WHERE user_id = ?', [chefId]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Pending chef not found' });
+      return res.status(404).json({ error: 'Chef not found' });
     }
 
     res.json({ message: 'Chef rejected successfully' });
@@ -73,7 +74,9 @@ router.post('/chefs/:id/reject', async (req, res) => {
 router.get('/ingredients', async (req, res) => {
   try {
     const ingredients = await query(
-      'SELECT id, name, description FROM Ingredient ORDER BY name ASC'
+      `SELECT ingredient_id, name, generic_taxonomy_name, calories_per_unit,
+              protein_g, carbs_g, fat_g
+       FROM Ingredient ORDER BY name ASC`
     );
 
     res.json(ingredients);
@@ -86,17 +89,28 @@ router.get('/ingredients', async (req, res) => {
 // POST /api/admin/ingredients — create
 router.post('/ingredients', async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, generic_taxonomy_name, calories_per_unit, protein_g, carbs_g, fat_g } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Name is required' });
     }
+    if (!generic_taxonomy_name || typeof generic_taxonomy_name !== 'string' || generic_taxonomy_name.trim().length === 0) {
+      return res.status(400).json({ error: 'generic_taxonomy_name is required' });
+    }
 
     const result = await query(
-      'INSERT INTO Ingredient (name, description) VALUES (?, ?)',
-      [name.trim(), description || null]
+      `INSERT INTO Ingredient (name, generic_taxonomy_name, calories_per_unit, protein_g, carbs_g, fat_g)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        name.trim(),
+        generic_taxonomy_name.trim(),
+        calories_per_unit || null,
+        protein_g || null,
+        carbs_g || null,
+        fat_g || null,
+      ]
     );
 
-    res.status(201).json({ id: result.insertId, message: 'Ingredient created' });
+    res.status(201).json({ ingredient_id: result.insertId, message: 'Ingredient created' });
   } catch (err) {
     console.error('Error creating ingredient:', err);
     if (err.code === 'ER_DUP_ENTRY') {
@@ -115,14 +129,28 @@ router.patch('/ingredients/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid ingredient ID' });
     }
 
-    const { name, description } = req.body;
+    const { name, generic_taxonomy_name, calories_per_unit, protein_g, carbs_g, fat_g } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Name is required' });
     }
+    if (!generic_taxonomy_name || typeof generic_taxonomy_name !== 'string' || generic_taxonomy_name.trim().length === 0) {
+      return res.status(400).json({ error: 'generic_taxonomy_name is required' });
+    }
 
     const result = await query(
-      'UPDATE Ingredient SET name = ?, description = ? WHERE id = ?',
-      [name.trim(), description || null, ingredientId]
+      `UPDATE Ingredient
+       SET name = ?, generic_taxonomy_name = ?, calories_per_unit = ?,
+           protein_g = ?, carbs_g = ?, fat_g = ?
+       WHERE ingredient_id = ?`,
+      [
+        name.trim(),
+        generic_taxonomy_name.trim(),
+        calories_per_unit || null,
+        protein_g || null,
+        carbs_g || null,
+        fat_g || null,
+        ingredientId,
+      ]
     );
 
     if (result.affectedRows === 0) {
@@ -148,9 +176,9 @@ router.delete('/ingredients/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid ingredient ID' });
     }
 
-    // Check if ingredient is used in recipes
+    // Check if ingredient is referenced in any recipe (Requires table)
     const [usage] = await query(
-      'SELECT COUNT(*) as count FROM Recipe_Ingredient WHERE ingredient_id = ?',
+      'SELECT COUNT(*) AS count FROM Requires WHERE ingredient_id = ?',
       [ingredientId]
     );
 
@@ -158,7 +186,7 @@ router.delete('/ingredients/:id', async (req, res) => {
       return res.status(409).json({ error: 'Cannot delete ingredient used in recipes' });
     }
 
-    const result = await query('DELETE FROM Ingredient WHERE id = ?', [ingredientId]);
+    const result = await query('DELETE FROM Ingredient WHERE ingredient_id = ?', [ingredientId]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Ingredient not found' });
@@ -172,6 +200,8 @@ router.delete('/ingredients/:id', async (req, res) => {
 });
 
 // POST /api/admin/content/:type/:id/moderate — flag/remove recipe or review
+// For recipe: :id = recipe_id. Body: { action }
+// For review: :id = recipe_id, body: { reviewer_id }
 router.post('/content/:type/:id/moderate', async (req, res) => {
   try {
     const { type, id } = req.params;
@@ -181,18 +211,38 @@ router.post('/content/:type/:id/moderate', async (req, res) => {
     }
 
     if (type === 'recipe') {
-      const result = await query(
-        'UPDATE Recipe SET status = "removed" WHERE id = ?',
-        [contentId]
-      );
+      const { action } = req.body;
+      if (!action || typeof action !== 'string' || action.trim().length === 0) {
+        return res.status(400).json({ error: 'action is required' });
+      }
 
-      if (result.affectedRows === 0) {
+      const [recipe] = await query('SELECT recipe_id FROM Recipe WHERE recipe_id = ?', [contentId]);
+      if (!recipe) {
         return res.status(404).json({ error: 'Recipe not found' });
       }
 
-      res.json({ message: 'Recipe removed' });
+      // Upsert into Moderates — PK is (recipe_id, user_id)
+      await query(
+        `INSERT INTO Moderates (recipe_id, user_id, action, moderation_date)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE action = ?, moderation_date = NOW()`,
+        [contentId, req.user.id, action.trim(), action.trim()]
+      );
+
+      res.json({ message: 'Recipe moderated' });
     } else if (type === 'review') {
-      const result = await query('DELETE FROM Review WHERE id = ?', [contentId]);
+      const { reviewer_id } = req.body;
+      const reviewerId = parseInt(reviewer_id);
+      if (isNaN(reviewerId)) {
+        return res.status(400).json({ error: 'Valid reviewer_id is required' });
+      }
+
+      // Rates_Review PK is (recipe_id, user_id, timestamp) — delete all reviews
+      // from this reviewer for this recipe (contentId = recipe_id)
+      const result = await query(
+        'DELETE FROM Rates_Review WHERE recipe_id = ? AND user_id = ?',
+        [contentId, reviewerId]
+      );
 
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'Review not found' });
