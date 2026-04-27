@@ -348,4 +348,26 @@ BEGIN
         );
     END IF;
 END//
+
+-- D04: original_item_id != substitute_item_id (MySQL error 3823 blocks CHECK on FK cols)
+CREATE TRIGGER trg_allows_substitution_check_ins
+    BEFORE INSERT ON Allows_Substitution
+    FOR EACH ROW
+BEGIN
+    IF NEW.original_item_id = NEW.substitute_item_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'original_item_id and substitute_item_id must be different';
+    END IF;
+END//
+
+CREATE TRIGGER trg_allows_substitution_check_upd
+    BEFORE UPDATE ON Allows_Substitution
+    FOR EACH ROW
+BEGIN
+    IF NEW.original_item_id = NEW.substitute_item_id THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'original_item_id and substitute_item_id must be different';
+    END IF;
+END//
+
 DELIMITER ;
