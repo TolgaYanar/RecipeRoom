@@ -1,5 +1,5 @@
-// Single source of truth for all tag/filter values.
-// Used by: Navbar, FilterSidebar, CreateRecipe, and backend B04 filter endpoint.
+// shared tag/filter values — keep frontend dropdowns and backend
+// query params in sync
 
 export const RECIPE_DROPDOWN = [
   {

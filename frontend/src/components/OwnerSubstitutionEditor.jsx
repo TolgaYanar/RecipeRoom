@@ -7,8 +7,9 @@ import {
   deleteRecipeSubstitution,
 } from '../api/recipes';
 
-// Live wrapper for SubstitutionManager — used on RecipeDetail when the
-// logged-in user owns the recipe. Each add/remove writes through B22.
+// live wrapper for SubstitutionManager — used on RecipeDetail when the
+// logged-in user owns the recipe. each add/remove writes straight to
+// /recipes/:id/substitutions
 export default function OwnerSubstitutionEditor({ recipeId, ingredients }) {
   // null while loading; [] once a fetch resolves
   const [value, setValue]   = useState(null);

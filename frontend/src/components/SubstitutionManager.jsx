@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Plus, X, Search } from 'lucide-react';
 import useIngredientSearch from '../hooks/useIngredientSearch';
 
-// Controlled. Parent owns `value` (the rules list) and decides how to persist —
-// CreateRecipe bundles them into the transactional POST; RecipeDetail's owner
-// view will write directly via the Allows_Substitution endpoints (B22).
+// controlled — parent owns the rules list and decides how to persist.
+// CreateRecipe bundles them into the recipe POST; the owner-view wrapper
+// on RecipeDetail writes them straight to /recipes/:id/substitutions.
 export default function SubstitutionManager({ ingredients = [], value = [], onChange }) {
   const named = ingredients.filter((i) => i?.name?.trim());
 
@@ -53,7 +53,8 @@ export default function SubstitutionManager({ ingredients = [], value = [], onCh
 function SubstitutionRow({ source, rules, onAdd, onRemove }) {
   const [picking, setPicking] = useState(false);
 
-  // already-picked names so the picker can hide them; D04 backs the same rule server-side
+  // hide the source ingredient and already-picked subs from the picker —
+  // the schema trigger blocks the same rule server-side anyway
   const exclude = [source.name, ...rules.map((r) => r.sub_ingredient_name)];
 
   return (

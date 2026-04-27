@@ -40,9 +40,8 @@ export default function CreateRecipe() {
   const [submitting, setSubmitting] = useState(false);
   const [forkSource, setForkSource] = useState(null);
 
-  // when ?fork=:id is present, prefill from the source so the user can
-  // tweak it instead of starting from scratch — allowed substitutions
-  // ride along too unless they edit them
+  // when ?fork=:id is present, seed the form from the source recipe —
+  // including its allowed substitutions, so the fork starts as an exact copy
   useEffect(() => {
     if (!forkId) return;
     getRecipe(forkId)
