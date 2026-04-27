@@ -505,22 +505,22 @@ D04 Constraint trigger ─► B22 / F08
 Tick each as it merges to `main`. When every box is checked, the project is finalized.
 
 ### Backend
-- [ ] B01 · Auth middleware + session
-- [ ] B02 · DB helpers + error convention
-- [ ] B03 · Update auth.js to issue tokens
+- [x] B01 · Auth middleware + session
+- [x] B02 · DB helpers + error convention
+- [x] B03 · Update auth.js to issue tokens
 - [ ] B04 · Recipes API
 - [ ] B05 · Ingredients API
 - [ ] B06 · Shop This Meal / Substitution planner
 - [ ] B07 · Orders API
 - [ ] B08 · Suppliers & inventory API
-- [ ] B09 · Users / profile API
+- [x] B09 · Users / profile API
 - [ ] B10 · Reviews & ratings API
-- [ ] B11 · Admin API
+- [x] B11 · Admin API
 - [ ] B12 · Home highlights feed
 - [ ] B13 · Challenges API
 - [ ] B14 · Mount routes + CORS + error handler
-- [ ] B15 · Password hashing (bcrypt)
-- [ ] B17 · Request validation middleware
+- [x] B15 · Password hashing (bcrypt)
+- [x] B17 · Request validation middleware
 - [ ] B18 · Highlights admin API (Featured_Selection CRUD)
 - [ ] B19 · Flavor Profile / Affinity API
 - [ ] B20 · Cook Log API
@@ -528,10 +528,10 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] B22 · Allows_Substitution management API
 
 ### Database
-- [ ] D01 · Seed script
-- [ ] D02 · DB reset script
+- [x] D01 · Seed script
+- [x] D02 · DB reset script
 - [ ] D03 · Design-report §3 query map + table-coverage audit
-- [ ] D04 · is_ingrd_different trigger
+- [x] D04 · is_ingrd_different trigger
 
 ### Frontend shared
 - [x] F01 · API client layer
@@ -559,7 +559,7 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] P13 · Profile > Flavor Profile tab
 
 ### Cross-cutting
-- [ ] X01 · .gitignore / .env.example audit
+- [x] X01 · .gitignore / .env.example audit
 - [ ] X02 · README.md
 - [ ] X03 · Postman collection
 - [ ] X04 · End-to-end smoke test
