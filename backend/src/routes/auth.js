@@ -1,13 +1,23 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const { query, withTransaction } = require('../utils/db');
+const { JWT_SECRET } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const {
+  validateUserLogin,
+  validateUserRegistration,
+  validateHomeCookRegistration,
+  validateSupplierRegistration,
+  validateAdminRegistration,
+} = require('../middleware/validation');
 
 // LOGIN
-router.post('/login', async (req, res) => {
+router.post('/login', validateUserLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const [rows] = await pool.query(
+    const rows = await query(
       `SELECT u.user_id, u.UserName, u.Email, u.passwordHash,
               CASE
                   WHEN a.user_id IS NOT NULL THEN 'Administrator'
@@ -30,159 +40,259 @@ router.post('/login', async (req, res) => {
 
     const user = rows[0];
 
-    if (user.passwordHash !== password) {
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    const token = jwt.sign(
+      {
+        user_id: user.user_id,
+        user_type: user.user_type,
+        username: user.UserName,
+        email: user.Email,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.json({
-      user_id: user.user_id,
-      username: user.UserName,
-      email: user.Email,
-      user_type: user.user_type
+      user: {
+        user_id: user.user_id,
+        username: user.UserName,
+        email: user.Email,
+        user_type: user.user_type,
+      },
+      token,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    throw err;
   }
 });
 
 // REGISTER HOME COOK
-router.post('/register/home-cook', async (req, res) => {
-  const conn = await pool.getConnection();
+router.post('/register/home-cook', validateHomeCookRegistration, async (req, res) => {
   try {
     const { username, email, password, target_daily_calories, primary_diet_goal } = req.body;
 
-    await conn.beginTransaction();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await conn.query(
-      `INSERT INTO User (UserName, Email, passwordHash, join_date)
-       VALUES (?, ?, ?, NOW())`,
-      [username, email, password]
+    const result = await withTransaction(async (conn) => {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO User (UserName, Email, passwordHash, join_date)
+         VALUES (?, ?, ?, NOW())`,
+        [username, email, hashedPassword]
+      );
+
+      const userId = insertResult.insertId;
+
+      await conn.execute(
+        `INSERT INTO Home_Cook (user_id, balances, target_daily_calories, primary_diet_goal)
+         VALUES (?, 0, ?, ?)`,
+        [userId, target_daily_calories || null, primary_diet_goal || null]
+      );
+
+      return userId;
+    });
+
+    const token = jwt.sign(
+      {
+        user_id: result,
+        user_type: 'Home_Cook',
+        username,
+        email,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
-    const userId = result.insertId;
-
-    await conn.query(
-      `INSERT INTO Home_Cook (user_id, balances, target_daily_calories, primary_diet_goal)
-       VALUES (?, 0, ?, ?)`,
-      [userId, target_daily_calories || null, primary_diet_goal || null]
-    );
-
-    await conn.commit();
-    res.status(201).json({ user_id: userId, user_type: 'Home_Cook' });
+    res.status(201).json({
+      user: {
+        user_id: result,
+        username,
+        email,
+        user_type: 'Home_Cook',
+      },
+      token,
+    });
   } catch (err) {
-    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: err.message });
-  } finally {
-    conn.release();
+    throw err;
   }
 });
 
 // REGISTER VERIFIED CHEF
-router.post('/register/chef', async (req, res) => {
-  const conn = await pool.getConnection();
+router.post('/register/chef', validateUserRegistration, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    await conn.beginTransaction();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await conn.query(
-      `INSERT INTO User (UserName, Email, passwordHash, join_date)
-       VALUES (?, ?, ?, NOW())`,
-      [username, email, password]
+    const result = await withTransaction(async (conn) => {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO User (UserName, Email, passwordHash, join_date)
+         VALUES (?, ?, ?, NOW())`,
+        [username, email, hashedPassword]
+      );
+
+      const userId = insertResult.insertId;
+
+      await conn.execute(
+        `INSERT INTO Verified_Chef (user_id, verification_date, royalty_points)
+         VALUES (?, CURDATE(), 0)`,
+        [userId]
+      );
+
+      return userId;
+    });
+
+    const token = jwt.sign(
+      {
+        user_id: result,
+        user_type: 'Verified_Chef',
+        username,
+        email,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
-    const userId = result.insertId;
-
-    await conn.query(
-      `INSERT INTO Verified_Chef (user_id, verification_date, royalty_points)
-       VALUES (?, CURDATE(), 0)`,
-      [userId]
-    );
-
-    await conn.commit();
-    res.status(201).json({ user_id: userId, user_type: 'Verified_Chef' });
+    res.status(201).json({
+      user: {
+        user_id: result,
+        username,
+        email,
+        user_type: 'Verified_Chef',
+      },
+      token,
+    });
   } catch (err) {
-    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: err.message });
-  } finally {
-    conn.release();
+    throw err;
   }
 });
 
 // REGISTER LOCAL SUPPLIER
-router.post('/register/supplier', async (req, res) => {
-  const conn = await pool.getConnection();
+router.post('/register/supplier', validateSupplierRegistration, async (req, res) => {
   try {
     const { username, email, password, business_name, address, contact_number } = req.body;
 
-    await conn.beginTransaction();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await conn.query(
-      `INSERT INTO User (UserName, Email, passwordHash, join_date)
-       VALUES (?, ?, ?, NOW())`,
-      [username, email, password]
+    const result = await withTransaction(async (conn) => {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO User (UserName, Email, passwordHash, join_date)
+         VALUES (?, ?, ?, NOW())`,
+        [username, email, hashedPassword]
+      );
+
+      const userId = insertResult.insertId;
+
+      await conn.execute(
+        `INSERT INTO Local_Supplier (user_id, business_name, address, contact_number)
+         VALUES (?, ?, ?, ?)`,
+        [userId, business_name, address, contact_number]
+      );
+
+      return userId;
+    });
+
+    const token = jwt.sign(
+      {
+        user_id: result,
+        user_type: 'Local_Supplier',
+        username,
+        email,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
-    const userId = result.insertId;
-
-    await conn.query(
-      `INSERT INTO Local_Supplier (user_id, business_name, address, contact_number)
-       VALUES (?, ?, ?, ?)`,
-      [userId, business_name, address, contact_number]
-    );
-
-    await conn.commit();
-    res.status(201).json({ user_id: userId, user_type: 'Local_Supplier' });
+    res.status(201).json({
+      user: {
+        user_id: result,
+        username,
+        email,
+        user_type: 'Local_Supplier',
+      },
+      token,
+    });
   } catch (err) {
-    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Email or business info already exists' });
     }
-    res.status(500).json({ error: err.message });
-  } finally {
-    conn.release();
+    throw err;
   }
 });
 
 // REGISTER ADMIN
-router.post('/register/admin', async (req, res) => {
-  const conn = await pool.getConnection();
+router.post('/register/admin', validateAdminRegistration, async (req, res) => {
   try {
     const { username, email, password, admin_level } = req.body;
 
-    await conn.beginTransaction();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [result] = await conn.query(
-      `INSERT INTO User (UserName, Email, passwordHash, join_date)
-       VALUES (?, ?, ?, NOW())`,
-      [username, email, password]
+    const result = await withTransaction(async (conn) => {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO User (UserName, Email, passwordHash, join_date)
+         VALUES (?, ?, ?, NOW())`,
+        [username, email, hashedPassword]
+      );
+
+      const userId = insertResult.insertId;
+
+      await conn.execute(
+        `INSERT INTO Administrator (user_id, admin_level)
+         VALUES (?, ?)`,
+        [userId, admin_level]
+      );
+
+      return userId;
+    });
+
+    const token = jwt.sign(
+      {
+        user_id: result,
+        user_type: 'Administrator',
+        username,
+        email,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
     );
 
-    const userId = result.insertId;
-
-    await conn.query(
-      `INSERT INTO Administrator (user_id, admin_level)
-       VALUES (?, ?)`,
-      [userId, admin_level]
-    );
-
-    await conn.commit();
-    res.status(201).json({ user_id: userId, user_type: 'Administrator' });
+    res.status(201).json({
+      user: {
+        user_id: result,
+        username,
+        email,
+        user_type: 'Administrator',
+      },
+      token,
+    });
   } catch (err) {
-    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: err.message });
-  } finally {
-    conn.release();
+    throw err;
   }
+});
+
+// GET ME
+const { requireLogin } = require('../middleware/auth');
+router.get('/me', requireLogin, (req, res) => {
+  res.json({
+    user: {
+      user_id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+      user_type: req.user.user_type,
+    },
+  });
 });
 
 module.exports = router;
