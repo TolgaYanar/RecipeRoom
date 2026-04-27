@@ -13,7 +13,19 @@ router.get('/:id', async (req, res) => {
     }
 
     const [user] = await query(
-      'SELECT id, username, email, user_type, join_date FROM User WHERE id = ?',
+      `SELECT u.user_id, u.UserName AS username, u.Email AS email, u.join_date,
+              CASE
+                  WHEN a.user_id IS NOT NULL THEN 'Administrator'
+                  WHEN vc.user_id IS NOT NULL THEN 'Verified_Chef'
+                  WHEN ls.user_id IS NOT NULL THEN 'Local_Supplier'
+                  WHEN hc.user_id IS NOT NULL THEN 'Home_Cook'
+              END AS user_type
+       FROM User u
+       LEFT JOIN Administrator a ON u.user_id = a.user_id
+       LEFT JOIN Verified_Chef vc ON u.user_id = vc.user_id
+       LEFT JOIN Local_Supplier ls ON u.user_id = ls.user_id
+       LEFT JOIN Home_Cook hc ON u.user_id = hc.user_id
+       WHERE u.user_id = ?`,
       [userId]
     );
 
@@ -41,7 +53,7 @@ router.patch('/:id', requireLogin, async (req, res) => {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    await query('UPDATE User SET username = ? WHERE id = ?', [username.trim(), userId]);
+    await query('UPDATE User SET UserName = ? WHERE user_id = ?', [username.trim(), userId]);
 
     res.json({ message: 'Profile updated' });
   } catch (err) {
@@ -59,8 +71,11 @@ router.get('/:id/recipes', async (req, res) => {
     }
 
     const recipes = await query(
-      'SELECT id, title, description, prep_time, cook_time, servings, difficulty, status, created_at FROM Recipe WHERE author_id = ? AND status = "published" ORDER BY created_at DESC',
-      [userId]
+      `SELECT recipe_id, title, description, cooking_time, difficulty, base_servings, parent_recipe_id
+       FROM Recipe
+       WHERE publisher_home_cook_id = ? OR publisher_chef_id = ?
+       ORDER BY recipe_id DESC`,
+      [userId, userId]
     );
 
     res.json(recipes);
@@ -71,26 +86,36 @@ router.get('/:id/recipes', async (req, res) => {
 });
 
 // GET /api/users/:id/royalties — chefs only
-router.get('/:id/royalties', requireLogin, requireRole('Chef'), async (req, res) => {
+router.get('/:id/royalties', requireLogin, requireRole('Verified_Chef'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId) || req.user.id !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const royalties = await query(
-      'SELECT recipe_id, royalty_points, earned_at FROM Earns_Royalty WHERE user_id = ? ORDER BY earned_at DESC',
+    const [chef] = await query(
+      'SELECT royalty_points FROM Verified_Chef WHERE user_id = ?',
       [userId]
     );
 
-    const [total] = await query(
-      'SELECT SUM(royalty_points) as total_points FROM Earns_Royalty WHERE user_id = ?',
+    if (!chef) {
+      return res.status(404).json({ error: 'Chef not found' });
+    }
+
+    // Per-recipe breakdown: completed orders for this chef's recipes
+    const perRecipe = await query(
+      `SELECT r.recipe_id, r.title, COUNT(o.order_id) AS completed_orders
+       FROM Recipe r
+       LEFT JOIN Orders o ON r.recipe_id = o.recipe_id AND o.status = 'Completed'
+       WHERE r.publisher_chef_id = ?
+       GROUP BY r.recipe_id, r.title
+       ORDER BY completed_orders DESC`,
       [userId]
     );
 
     res.json({
-      royalties,
-      total_points: total.total_points || 0
+      total_points: chef.royalty_points,
+      per_recipe: perRecipe,
     });
   } catch (err) {
     console.error('Error fetching user royalties:', err);
@@ -99,6 +124,7 @@ router.get('/:id/royalties', requireLogin, requireRole('Chef'), async (req, res)
 });
 
 // GET /api/users/:id/meal-lists
+// Meal_List PK is (list_name, user_id) — no auto-increment id
 router.get('/:id/meal-lists', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
@@ -107,7 +133,12 @@ router.get('/:id/meal-lists', requireLogin, async (req, res) => {
     }
 
     const lists = await query(
-      'SELECT ml.id, ml.name, ml.description, ml.created_at, COUNT(cr.recipe_id) as recipe_count FROM Meal_List ml LEFT JOIN Contains_Recipe cr ON ml.id = cr.list_id WHERE ml.user_id = ? GROUP BY ml.id ORDER BY ml.created_at DESC',
+      `SELECT ml.list_name, COUNT(cr.recipe_id) AS recipe_count
+       FROM Meal_List ml
+       LEFT JOIN Contains_Recipe cr ON ml.list_name = cr.list_name AND ml.user_id = cr.user_id
+       WHERE ml.user_id = ?
+       GROUP BY ml.list_name
+       ORDER BY ml.list_name`,
       [userId]
     );
 
@@ -126,40 +157,47 @@ router.post('/:id/meal-lists', requireLogin, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const { name, description } = req.body;
+    const { name } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const result = await query(
-      'INSERT INTO Meal_List (user_id, name, description) VALUES (?, ?, ?)',
-      [userId, name.trim(), description || null]
-    );
+    const listName = name.trim();
 
-    res.status(201).json({ id: result.insertId, message: 'Meal list created' });
+    try {
+      await query('INSERT INTO Meal_List (list_name, user_id) VALUES (?, ?)', [listName, userId]);
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'A meal list with that name already exists' });
+      }
+      throw err;
+    }
+
+    res.status(201).json({ list_name: listName, message: 'Meal list created' });
   } catch (err) {
     console.error('Error creating meal list:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PATCH /api/users/:id/meal-lists/:listId
+// PATCH /api/users/:id/meal-lists/:listId — rename (listId is the list_name)
 router.patch('/:id/meal-lists/:listId', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const listId = parseInt(req.params.listId);
-    if (isNaN(userId) || isNaN(listId) || req.user.id !== userId) {
+    if (isNaN(userId) || req.user.id !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const { name, description } = req.body;
+    const oldName = req.params.listId;
+    const { name } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
+    // ON UPDATE CASCADE propagates the new list_name to Contains_Recipe automatically
     const result = await query(
-      'UPDATE Meal_List SET name = ?, description = ? WHERE id = ? AND user_id = ?',
-      [name.trim(), description || null, listId, userId]
+      'UPDATE Meal_List SET list_name = ? WHERE list_name = ? AND user_id = ?',
+      [name.trim(), oldName, userId]
     );
 
     if (result.affectedRows === 0) {
@@ -173,68 +211,72 @@ router.patch('/:id/meal-lists/:listId', requireLogin, async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id/meal-lists/:listId
+// DELETE /api/users/:id/meal-lists/:listId — listId is the list_name
 router.delete('/:id/meal-lists/:listId', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const listId = parseInt(req.params.listId);
-    if (isNaN(userId) || isNaN(listId) || req.user.id !== userId) {
+    if (isNaN(userId) || req.user.id !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    await withTransaction(async (connection) => {
-      await connection.query('DELETE FROM Contains_Recipe WHERE list_id = ?', [listId]);
-      const result = await connection.query('DELETE FROM Meal_List WHERE id = ? AND user_id = ?', [listId, userId]);
-      if (result.affectedRows === 0) {
-        throw new Error('Meal list not found');
-      }
-    });
+    const listName = req.params.listId;
+
+    // ON DELETE CASCADE removes Contains_Recipe rows automatically
+    const result = await query(
+      'DELETE FROM Meal_List WHERE list_name = ? AND user_id = ?',
+      [listName, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Meal list not found' });
+    }
 
     res.json({ message: 'Meal list deleted' });
   } catch (err) {
     console.error('Error deleting meal list:', err);
-    if (err.message === 'Meal list not found') {
-      res.status(404).json({ error: 'Meal list not found' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/users/:id/meal-lists/:listId/recipes
+// POST /api/users/:id/meal-lists/:listId/recipes — listId is the list_name
 router.post('/:id/meal-lists/:listId/recipes', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const listId = parseInt(req.params.listId);
-    if (isNaN(userId) || isNaN(listId) || req.user.id !== userId) {
+    if (isNaN(userId) || req.user.id !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const listName = req.params.listId;
     const { recipe_id } = req.body;
     const recipeId = parseInt(recipe_id);
     if (isNaN(recipeId)) {
       return res.status(400).json({ error: 'Valid recipe_id is required' });
     }
 
-    // Check if list belongs to user
-    const [list] = await query('SELECT id FROM Meal_List WHERE id = ? AND user_id = ?', [listId, userId]);
+    const [list] = await query(
+      'SELECT list_name FROM Meal_List WHERE list_name = ? AND user_id = ?',
+      [listName, userId]
+    );
     if (!list) {
       return res.status(404).json({ error: 'Meal list not found' });
     }
 
-    // Check if recipe exists
-    const [recipe] = await query('SELECT id FROM Recipe WHERE id = ? AND status = "published"', [recipeId]);
+    const [recipe] = await query('SELECT recipe_id FROM Recipe WHERE recipe_id = ?', [recipeId]);
     if (!recipe) {
       return res.status(404).json({ error: 'Recipe not found' });
     }
 
-    // Check for duplicate
-    const [existing] = await query('SELECT id FROM Contains_Recipe WHERE list_id = ? AND recipe_id = ?', [listId, recipeId]);
-    if (existing) {
-      return res.status(409).json({ error: 'Recipe already in list' });
+    try {
+      await query(
+        'INSERT INTO Contains_Recipe (list_name, user_id, recipe_id) VALUES (?, ?, ?)',
+        [listName, userId, recipeId]
+      );
+    } catch (err) {
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'Recipe already in list' });
+      }
+      throw err;
     }
-
-    await query('INSERT INTO Contains_Recipe (list_id, recipe_id) VALUES (?, ?)', [listId, recipeId]);
 
     res.status(201).json({ message: 'Recipe added to list' });
   } catch (err) {
@@ -243,19 +285,20 @@ router.post('/:id/meal-lists/:listId/recipes', requireLogin, async (req, res) =>
   }
 });
 
-// DELETE /api/users/:id/meal-lists/:listId/recipes/:recipeId
+// DELETE /api/users/:id/meal-lists/:listId/recipes/:recipeId — listId is the list_name
 router.delete('/:id/meal-lists/:listId/recipes/:recipeId', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const listId = parseInt(req.params.listId);
     const recipeId = parseInt(req.params.recipeId);
-    if (isNaN(userId) || isNaN(listId) || isNaN(recipeId) || req.user.id !== userId) {
+    if (isNaN(userId) || isNaN(recipeId) || req.user.id !== userId) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
+    const listName = req.params.listId;
+
     const result = await query(
-      'DELETE FROM Contains_Recipe WHERE list_id = ? AND recipe_id = ? AND list_id IN (SELECT id FROM Meal_List WHERE user_id = ?)',
-      [listId, recipeId, userId]
+      'DELETE FROM Contains_Recipe WHERE list_name = ? AND user_id = ? AND recipe_id = ?',
+      [listName, userId, recipeId]
     );
 
     if (result.affectedRows === 0) {
