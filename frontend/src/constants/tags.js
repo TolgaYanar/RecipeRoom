@@ -73,14 +73,16 @@ export const RECIPE_DROPDOWN = [
     title: 'Cuisine',
     param: 'cuisine',
     options: [
-      { label: 'Turkish',        value: 'turkish' },
-      { label: 'American',       value: 'american' },
-      { label: 'Asian',          value: 'asian' },
-      { label: 'Middle Eastern', value: 'middle-eastern' },
-      { label: 'Korean',         value: 'korean' },
-      { label: 'Spanish',        value: 'spanish' },
-      { label: 'Italian',        value: 'italian' },
-      { label: 'Mediterranean',  value: 'mediterranean' },
+      { label: 'Italian',       value: 'italian' },
+      { label: 'Japanese',      value: 'japanese' },
+      { label: 'Mexican',       value: 'mexican' },
+      { label: 'French',        value: 'french' },
+      { label: 'Thai',          value: 'thai' },
+      { label: 'American',      value: 'american' },
+      { label: 'Mediterranean', value: 'mediterranean' },
+      { label: 'Chinese',       value: 'chinese' },
+      { label: 'Indian',        value: 'indian' },
+      { label: 'Korean',        value: 'korean' },
     ],
   },
 ];
@@ -98,4 +100,15 @@ export const DIFFICULTY_OPTIONS = [
   { label: 'Easy',   value: 'easy' },
   { label: 'Medium', value: 'medium' },
   { label: 'Hard',   value: 'hard' },
+];
+
+export const CATEGORY_OPTIONS = [
+  { label: 'Main Course', value: 'main-course' },
+  { label: 'Dessert',     value: 'dessert' },
+  { label: 'Appetizer',   value: 'appetizer' },
+  { label: 'Salad',       value: 'salad' },
+  { label: 'Breakfast',   value: 'breakfast' },
+  { label: 'Snack',       value: 'snack' },
+  { label: 'Soup',        value: 'soup' },
+  { label: 'Beverage',    value: 'beverage' },
 ];
