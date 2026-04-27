@@ -25,7 +25,8 @@ export default function Challenges() {
 
   const joinedActive = activeList.filter((c) => c.user_joined);
 
-  // optimistic join/leave so the UI feels alive even before backend ships
+  // optimistic join/leave — there's no dedicated join endpoint yet, so we
+  // update local state and let a real implementation replace this later
   const togglJoined = (id, joined) => {
     setChallenges((prev) => {
       const items = Array.isArray(prev) ? prev : (prev?.items ?? []);
@@ -119,30 +120,43 @@ function PageHeader() {
 }
 
 function StatusTabs({ tab, onChange, activeCount, completedCount }) {
-  const Btn = ({ id, label, count, icon }) => {
-    const active = tab === id;
-    return (
-      <button
-        type="button"
-        onClick={() => onChange(id)}
-        className={
-          'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ' +
-          (active
-            ? 'bg-[#1B3A2D] text-white border border-[#1B3A2D]'
-            : 'bg-white text-[#1A1A1A] border border-[#D0D0D0] hover:border-[#1B3A2D]')
-        }
-      >
-        {icon}
-        {count} {label}
-      </button>
-    );
-  };
-
   return (
     <div className="flex flex-wrap gap-2 mb-6">
-      <Btn id="active"    label="Active Challenges" count={activeCount}    icon={<Trophy   className="w-4 h-4" strokeWidth={1.5} />} />
-      <Btn id="completed" label="Completed"         count={completedCount} icon={<Sparkles className="w-4 h-4" strokeWidth={1.5} />} />
+      <StatusTabButton
+        id="active"
+        active={tab === 'active'}
+        onClick={onChange}
+        icon={<Trophy className="w-4 h-4" strokeWidth={1.5} />}
+        count={activeCount}
+        label="Active Challenges"
+      />
+      <StatusTabButton
+        id="completed"
+        active={tab === 'completed'}
+        onClick={onChange}
+        icon={<Sparkles className="w-4 h-4" strokeWidth={1.5} />}
+        count={completedCount}
+        label="Completed"
+      />
     </div>
+  );
+}
+
+function StatusTabButton({ id, active, onClick, icon, count, label }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(id)}
+      className={
+        'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ' +
+        (active
+          ? 'bg-[#1B3A2D] text-white border border-[#1B3A2D]'
+          : 'bg-white text-[#1A1A1A] border border-[#D0D0D0] hover:border-[#1B3A2D]')
+      }
+    >
+      {icon}
+      {count} {label}
+    </button>
   );
 }
 

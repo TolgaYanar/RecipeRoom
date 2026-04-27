@@ -6,9 +6,11 @@ import {
   Minus, Plus, BadgeCheck,
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import OwnerSubstitutionEditor from '../components/OwnerSubstitutionEditor';
+import StarRating from '../components/StarRating';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getRecipe, forkRecipe } from '../api/recipes';
+import { getRecipe, forkRecipe, getRecipeMedia } from '../api/recipes';
 import { getReviews, createReview } from '../api/reviews';
 import { addCookLog } from '../api/cookLog';
 
@@ -25,12 +27,14 @@ export default function RecipeDetail() {
   const toast = useToast();
 
   const [recipe,    setRecipe]    = useState(null);
+  const [media,     setMedia]     = useState([]);
   const [reviews,   setReviews]   = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [notFound,  setNotFound]  = useState(false);
 
   const [servings, setServings] = useState(4);
   const [comment,  setComment]  = useState('');
+  const [rating,   setRating]   = useState(5);
   const [posting,  setPosting]  = useState(false);
 
   useEffect(() => {
@@ -43,6 +47,9 @@ export default function RecipeDetail() {
       .finally(() => setLoading(false));
 
     getReviews(id).then(setReviews).catch(() => setReviews([]));
+    getRecipeMedia(id)
+      .then((data) => setMedia(Array.isArray(data) ? data : (data?.items ?? [])))
+      .catch(() => setMedia([]));
   }, [id]);
 
   if (loading) {
@@ -67,6 +74,9 @@ export default function RecipeDetail() {
   const ingredients   = recipe.ingredients   ?? [];
   const steps         = recipe.steps         ?? [];
   const substitutions = recipe.substitutions ?? [];
+
+  const ownerId = recipe.publisher_id ?? recipe.user_id ?? recipe.author_id;
+  const isOwner = user && ownerId != null && Number(user.user_id) === Number(ownerId);
 
   const handleCookedThis = async () => {
     if (!user) { openAuth(); return; }
@@ -94,10 +104,11 @@ export default function RecipeDetail() {
     if (!user) { openAuth(); return; }
     setPosting(true);
     try {
-      const created = await createReview(Number(id), { rating: 5, comment: comment.trim() });
+      const created = await createReview(Number(id), { rating, comment: comment.trim() });
       setReviews((prev) => [normalizeReview(created, user), ...prev]);
       toast.success('Comment posted');
       setComment('');
+      setRating(5);
     } catch {
       // already toasted by the interceptor
     } finally {
@@ -116,19 +127,7 @@ export default function RecipeDetail() {
           Back to recipes
         </Link>
 
-        <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-[#FAF8F5] mb-6">
-          {recipe.thumbnail_url ? (
-            <img
-              src={recipe.thumbnail_url}
-              alt={recipe.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-[#9E9E9E]">
-              <ChefHat className="w-16 h-16" strokeWidth={1} />
-            </div>
-          )}
-        </div>
+        <MediaCarousel media={media} fallback={recipe.thumbnail_url} alt={recipe.title} />
 
         <h1 className="text-[36px] font-bold text-[#1A1A1A] leading-tight mb-2">
           {recipe.title}
@@ -205,14 +204,90 @@ export default function RecipeDetail() {
           <InstructionsCard steps={steps} />
         </div>
 
+        {isOwner && (
+          <div className="mb-8">
+            <OwnerSubstitutionEditor recipeId={Number(id)} ingredients={ingredients} />
+          </div>
+        )}
+
         <CommentsSection
           comments={reviews}
           comment={comment}
           onChange={setComment}
+          rating={rating}
+          onRatingChange={setRating}
           onPost={postComment}
           posting={posting}
         />
       </div>
+    </div>
+  );
+}
+
+function MediaCarousel({ media, fallback, alt }) {
+  // build the slide list — Recipe_Media first, otherwise fall back to thumbnail_url
+  const slides = (Array.isArray(media) && media.length > 0)
+    ? [...media].sort((a, b) => (b.is_thumbnail ? 1 : 0) - (a.is_thumbnail ? 1 : 0))
+    : (fallback ? [{ url: fallback, type: 'image' }] : []);
+
+  const [i, setI] = useState(0);
+  const total = slides.length;
+  const go = (dir) => setI((cur) => (cur + dir + total) % total);
+
+  if (total === 0) {
+    return (
+      <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-[#FAF8F5] mb-6 flex items-center justify-center text-[#9E9E9E]">
+        <ChefHat className="w-16 h-16" strokeWidth={1} />
+      </div>
+    );
+  }
+
+  const current = slides[i];
+  const url = current.url ?? current.media_url ?? current.image_url;
+  const isVideo = (current.type ?? current.media_type) === 'video';
+
+  return (
+    <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-[#FAF8F5] mb-6">
+      {isVideo ? (
+        <video src={url} controls className="w-full h-full object-cover" />
+      ) : (
+        <img src={url} alt={alt} className="w-full h-full object-cover" />
+      )}
+
+      {total > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white border border-[#EBEBEB] flex items-center justify-center"
+            aria-label="Previous"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#1A1A1A]" strokeWidth={1.5} />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white border border-[#EBEBEB] flex items-center justify-center"
+            aria-label="Next"
+          >
+            <ArrowRight className="w-4 h-4 text-[#1A1A1A]" strokeWidth={1.5} />
+          </button>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setI(idx)}
+                className={
+                  'rounded-full transition-all ' +
+                  (idx === i ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/60 hover:bg-white/80')
+                }
+                aria-label={`Slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -363,12 +438,17 @@ function InstructionsCard({ steps }) {
   );
 }
 
-function CommentsSection({ comments, comment, onChange, onPost, posting }) {
+function CommentsSection({ comments, comment, onChange, rating, onRatingChange, onPost, posting }) {
   return (
     <section className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
       <h2 className="text-[18px] font-bold text-[#1A1A1A] mb-5">
         Comments ({comments.length})
       </h2>
+
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[13px] text-[#6B6B6B]">Your rating:</span>
+        <StarRating value={rating} onChange={onRatingChange} size="md" />
+      </div>
 
       <textarea
         value={comment}

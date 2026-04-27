@@ -44,11 +44,10 @@ Task ID prefixes:
 
 - Database schema, views, and royalty trigger — **done**
 - `backend/src/routes/auth.js` (login + 4 register endpoints) — **done**
-- `frontend/src/components/Navbar.jsx` (with mega dropdown) — **done**
-- `frontend/src/components/AuthModal.jsx` — **done**
-- `frontend/src/App.jsx` routing skeleton — **done**
-- `frontend/src/pages/CreateRecipe.jsx` header — **in progress**
-- All other pages — **placeholder files only**
+- Frontend shared kit (Navbar, AuthModal, route guards, API wrappers, toast wiring, NotFound) — **done**
+- Frontend pages P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P06 Challenges, P07 Profile (with P13 Flavor Profile tab) — **done**, wired through Deniz's API wrappers
+- F08 SubstitutionManager — **done**, mounted in CreateRecipe and RecipeDetail (owner view)
+- All other pages (P05 Checkout, P08–P12 Supplier/Admin) — **placeholder files only**
 
 ---
 
@@ -535,29 +534,29 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] D04 · is_ingrd_different trigger
 
 ### Frontend shared
-- [ ] F01 · API client layer
-- [ ] F02 · AuthContext + useAuth
-- [ ] F03 · Route guards
-- [ ] F04 · Shared UI kit
+- [x] F01 · API client layer
+- [x] F02 · AuthContext + useAuth
+- [x] F03 · Route guards
+- [x] F04 · Shared UI kit
 - [ ] F05 · SubstitutionPicker component
-- [ ] F06 · Global error / toast wiring
-- [ ] F07 · NotFound page + ErrorBoundary
-- [ ] F08 · SubstitutionManager component
+- [x] F06 · Global error / toast wiring
+- [x] F07 · NotFound page + ErrorBoundary
+- [x] F08 · SubstitutionManager component
 
 ### Pages
-- [ ] P01 · Home
-- [ ] P02 · Recipes discovery
-- [ ] P03 · RecipeDetail
-- [ ] P04 · CreateRecipe
+- [x] P01 · Home
+- [x] P02 · Recipes discovery
+- [x] P03 · RecipeDetail
+- [x] P04 · CreateRecipe
 - [ ] P05 · Checkout
-- [ ] P06 · Challenges
-- [ ] P07 · Profile
+- [x] P06 · Challenges
+- [x] P07 · Profile
 - [ ] P08 · SupplierDashboard
 - [ ] P09 · SupplierInventory
 - [ ] P10 · SupplierOrders
 - [ ] P11 · AdminPanel
 - [ ] P12 · AdminHighlights
-- [ ] P13 · Profile > Flavor Profile tab
+- [x] P13 · Profile > Flavor Profile tab
 
 ### Cross-cutting
 - [ ] X01 · .gitignore / .env.example audit
@@ -567,7 +566,7 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] X05 · Demo rehearsal
 - [ ] X06 · Final report update
 - [ ] X07 · Screenshots / recording
-- [ ] X08 · Shared tag-constants file
+- [x] X08 · Shared tag-constants file
 
 ### DB features exercised
 - [ ] `Recipe_Summary` view reachable from UI

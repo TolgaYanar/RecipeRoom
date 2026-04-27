@@ -1,22 +1,25 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Star, Clock, ChefHat, Users, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Star, Clock, ChefHat, Users, Plus, GitBranch } from 'lucide-react';
 import {
   CUISINE_OPTIONS,
   CATEGORY_OPTIONS,
   DIET_OPTIONS,
   DIFFICULTY_OPTIONS,
 } from '../constants/tags';
-import { createRecipe } from '../api/recipes';
+import { createRecipe, getRecipe } from '../api/recipes';
 import { useToast } from '../context/ToastContext';
 import IngredientRow from '../components/IngredientRow';
 import StepRow from '../components/StepRow';
 import ImageUrlInput from '../components/ImageUrlInput';
+import SubstitutionManager from '../components/SubstitutionManager';
 
 const blankIngredient = () => ({ quantity: '', unit: '', name: '' });
 
 export default function CreateRecipe() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const forkId = searchParams.get('fork');
   const toast = useToast();
 
   const [title, setTitle] = useState('');
@@ -32,8 +35,45 @@ export default function CreateRecipe() {
 
   const [ingredients, setIngredients] = useState([blankIngredient()]);
   const [steps, setSteps] = useState(['']);
+  const [substitutions, setSubstitutions] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
+  const [forkSource, setForkSource] = useState(null);
+
+  // when ?fork=:id is present, prefill from the source so the user can
+  // tweak it instead of starting from scratch — allowed substitutions
+  // ride along too unless they edit them
+  useEffect(() => {
+    if (!forkId) return;
+    getRecipe(forkId)
+      .then((src) => {
+        if (!src) return;
+        setForkSource(src);
+        if (src.title)        setTitle(`${src.title} (fork)`);
+        if (src.description)  setDescription(src.description);
+        if (src.image_url || src.thumbnail_url) setImageUrl(src.image_url || src.thumbnail_url);
+        if (src.cuisine)      setCuisine(src.cuisine);
+        if (src.category)     setCategory(src.category);
+        if (Array.isArray(src.diets))      setDiets(src.diets);
+        if (src.difficulty)   setDifficulty(src.difficulty);
+        if (src.prep_time   != null) setPrepTime(src.prep_time);
+        if (src.cook_time   != null) setCookTime(src.cook_time);
+        if (src.servings    != null) setServings(src.servings);
+        if (Array.isArray(src.ingredients) && src.ingredients.length) {
+          setIngredients(src.ingredients.map((i) => ({
+            id:       i.id ?? i.ingredient_id ?? null,
+            quantity: i.quantity ?? '',
+            unit:     i.unit ?? '',
+            name:     i.name ?? '',
+          })));
+        }
+        if (Array.isArray(src.steps) && src.steps.length) {
+          setSteps(src.steps.map((s) => (typeof s === 'string' ? s : s.text ?? '')));
+        }
+        if (Array.isArray(src.substitutions)) setSubstitutions(src.substitutions);
+      })
+      .catch(() => { /* interceptor toasts */ });
+  }, [forkId]);
 
   const toggleDiet = (value) =>
     setDiets((prev) =>
@@ -90,6 +130,7 @@ export default function CreateRecipe() {
         diets,
         ingredients: ingredients.filter((i) => i.name.trim()),
         steps: steps.map((s) => s.trim()).filter(Boolean),
+        substitutions,
       });
 
       toast.success('Recipe published');
@@ -105,6 +146,13 @@ export default function CreateRecipe() {
     <div className="min-h-screen bg-[#FAF8F5]">
       <div className="max-w-[1200px] mx-auto px-6 py-10">
         <PageHeading />
+
+        {forkSource && (
+          <div className="mb-6 inline-flex items-center gap-2 px-3 py-2 bg-[#F5F8F6] border border-[#D0D0D0] rounded-lg text-[13px] text-[#1A1A1A]">
+            <GitBranch className="w-4 h-4 text-[#1B3A2D]" strokeWidth={1.5} />
+            Forking from <span className="font-semibold">{forkSource.title}</span>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -215,6 +263,18 @@ export default function CreateRecipe() {
                   </div>
                 ))}
               </div>
+            </Card>
+
+            <Card>
+              <SectionHeader>Allowed Substitutions</SectionHeader>
+              <p className="text-[13px] text-[#6B6B6B] -mt-3 mb-4">
+                Whitelist swaps shoppers can pick when they buy ingredients for this recipe.
+              </p>
+              <SubstitutionManager
+                ingredients={ingredients}
+                value={substitutions}
+                onChange={setSubstitutions}
+              />
             </Card>
 
             <Card>
