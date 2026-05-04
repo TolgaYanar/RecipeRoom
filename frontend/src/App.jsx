@@ -11,6 +11,7 @@ import RecipeDetail from './pages/RecipeDetail';
 import CreateRecipe from './pages/CreateRecipe';
 import Challenges from './pages/Challenges';
 import Profile from './pages/Profile';
+import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import SupplierDashboard from './pages/SupplierDashboard';
 import SupplierInventory from './pages/SupplierInventory';
@@ -42,6 +43,7 @@ function App() {
           <ProtectedRoute><Profile /></ProtectedRoute>
         } />
 
+        <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={
           <ProtectedRoute><Checkout /></ProtectedRoute>
         } />

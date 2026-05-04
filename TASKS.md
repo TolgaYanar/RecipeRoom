@@ -47,7 +47,8 @@ Task ID prefixes:
 - Frontend shared kit (Navbar, AuthModal, route guards, API wrappers, toast wiring, NotFound) — **done**
 - Frontend pages P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P06 Challenges, P07 Profile (with P13 Flavor Profile tab) — **done**, wired through Deniz's API wrappers
 - F08 SubstitutionManager — **done**, mounted in CreateRecipe and RecipeDetail (owner view)
-- All other pages (P05 Checkout, P08–P12 Supplier/Admin) — **placeholder files only**
+- P05 Checkout (with /cart) + F05 SubstitutionPicker — **done**, full Add-to-Cart → planner → /cart → /checkout → POST /api/orders flow live
+- P08–P12 Supplier/Admin pages — **placeholder files only**
 
 ---
 
@@ -538,7 +539,7 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] F02 · AuthContext + useAuth
 - [x] F03 · Route guards
 - [x] F04 · Shared UI kit
-- [ ] F05 · SubstitutionPicker component
+- [x] F05 · SubstitutionPicker component
 - [x] F06 · Global error / toast wiring
 - [x] F07 · NotFound page + ErrorBoundary
 - [x] F08 · SubstitutionManager component
@@ -548,7 +549,7 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] P02 · Recipes discovery
 - [x] P03 · RecipeDetail
 - [x] P04 · CreateRecipe
-- [ ] P05 · Checkout
+- [x] P05 · Checkout
 - [x] P06 · Challenges
 - [x] P07 · Profile
 - [ ] P08 · SupplierDashboard

@@ -8,7 +8,9 @@ import {
 import LoadingSpinner from '../components/LoadingSpinner';
 import OwnerSubstitutionEditor from '../components/OwnerSubstitutionEditor';
 import StarRating from '../components/StarRating';
+import SubstitutionPicker from '../components/SubstitutionPicker';
 import { useAuth } from '../context/AuthContext';
+import { addRecipeToCart } from '../lib/cart';
 import { useToast } from '../context/ToastContext';
 import { getRecipe, forkRecipe, getRecipeMedia } from '../api/recipes';
 import { getReviews, createReview } from '../api/reviews';
@@ -36,6 +38,7 @@ export default function RecipeDetail() {
   const [comment,  setComment]  = useState('');
   const [rating,   setRating]   = useState(5);
   const [posting,  setPosting]  = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
 
   useEffect(() => {
     getRecipe(id)
@@ -86,6 +89,27 @@ export default function RecipeDetail() {
     } catch {
       // already toasted by the interceptor
     }
+  };
+
+  const handleAddToCart = () => {
+    if (!user) { openAuth(); return; }
+    setShopOpen(true);
+  };
+
+  const handleConfirmShop = (pickedItems) => {
+    addRecipeToCart({
+      recipe_id:     Number(id),
+      title:         recipe.title,
+      description:   recipe.description ?? '',
+      image_url:     recipe.thumbnail_url ?? recipe.image_url ?? null,
+      cuisine:       recipe.cuisine ?? null,
+      difficulty:    recipe.difficulty ?? null,
+      base_servings: recipe.servings ?? servings,
+      servings,
+      ingredients: pickedItems,
+    });
+    setShopOpen(false);
+    toast.success('Added to cart');
   };
 
   const handleFork = async () => {
@@ -200,6 +224,7 @@ export default function RecipeDetail() {
           <IngredientsCard
             ingredients={ingredients}
             substitutions={substitutions}
+            onAddToCart={handleAddToCart}
           />
           <InstructionsCard steps={steps} />
         </div>
@@ -220,6 +245,14 @@ export default function RecipeDetail() {
           posting={posting}
         />
       </div>
+
+      {shopOpen && (
+        <SubstitutionPicker
+          recipe={recipe}
+          onClose={() => setShopOpen(false)}
+          onConfirm={handleConfirmShop}
+        />
+      )}
     </div>
   );
 }
@@ -357,7 +390,7 @@ function StepperButton({ onClick, children }) {
   );
 }
 
-function IngredientsCard({ ingredients, substitutions }) {
+function IngredientsCard({ ingredients, substitutions, onAddToCart }) {
   return (
     <section className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
@@ -407,6 +440,7 @@ function IngredientsCard({ ingredients, substitutions }) {
 
       <button
         type="button"
+        onClick={onAddToCart}
         className="w-full py-3 bg-[#1B3A2D] text-white rounded-lg text-[14px] font-semibold hover:bg-[#142B22] transition-colors inline-flex items-center justify-center gap-2"
       >
         <ShoppingCart className="w-4 h-4" strokeWidth={1.5} />

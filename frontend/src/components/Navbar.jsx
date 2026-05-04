@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Bookmark, ShoppingCart, ChevronDown, User, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import useCart from '../hooks/useCart';
 import MegaMenu from './MegaMenu';
 
 const regularNav = [
@@ -28,6 +29,8 @@ export default function Navbar() {
   const isSupplier = user?.user_type === 'Local_Supplier';
   const isAdmin = user?.user_type === 'Administrator';
   const navLinks = isSupplier ? supplierNav : regularNav;
+  const cart = useCart();
+  const cartCount = cart.recipes.length;
 
   const isActive = (path) => location.pathname === path;
 
@@ -129,8 +132,13 @@ export default function Navbar() {
                     <button className="p-2 rounded-lg transition-all hover:bg-white/10">
                       <Bookmark className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.75)' }} strokeWidth={1.5} />
                     </button>
-                    <Link to="/checkout" className="relative p-2 rounded-lg transition-all hover:bg-white/10">
+                    <Link to="/cart" className="relative p-2 rounded-lg transition-all hover:bg-white/10">
                       <ShoppingCart className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.75)' }} strokeWidth={1.5} />
+                      {cartCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-[#F5C518] text-[#1A1A1A] text-[10px] font-bold rounded-full flex items-center justify-center">
+                          {cartCount}
+                        </span>
+                      )}
                     </Link>
                     <div className="h-[20px] mx-1" style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.20)' }} />
                   </>
