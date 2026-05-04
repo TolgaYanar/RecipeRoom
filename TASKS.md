@@ -48,7 +48,8 @@ Task ID prefixes:
 - Frontend pages P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P06 Challenges, P07 Profile (with P13 Flavor Profile tab) — **done**, wired through Deniz's API wrappers
 - F08 SubstitutionManager — **done**, mounted in CreateRecipe and RecipeDetail (owner view)
 - P05 Checkout (with /cart) + F05 SubstitutionPicker — **done**, full Add-to-Cart → planner → /cart → /checkout → POST /api/orders flow live
-- P08–P12 Supplier/Admin pages — **placeholder files only**
+- P11 AdminPanel — **done**, 6 tabs wired through Dev A's admin API + /admin/users and supplier verification appended to routes/admin.js (with permission)
+- P08–P10 Supplier pages, P12 AdminHighlights — **placeholder files only**
 
 ---
 
@@ -555,7 +556,7 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [ ] P08 · SupplierDashboard
 - [ ] P09 · SupplierInventory
 - [ ] P10 · SupplierOrders
-- [ ] P11 · AdminPanel
+- [x] P11 · AdminPanel
 - [ ] P12 · AdminHighlights
 - [x] P13 · Profile > Flavor Profile tab
 

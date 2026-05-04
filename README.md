@@ -41,10 +41,11 @@ sql/      Schema + seeds
 
 See [TASKS.md](TASKS.md) for the full master checklist. As of this commit:
 
-- ✅ Frontend pages: Home, Recipes, RecipeDetail, CreateRecipe, Challenges, Profile (with Flavor Profile tab)
-- ✅ Frontend shared: API wrappers, auth/routing, toast, NotFound, shared UI kit, SubstitutionManager
-- ⏳ Backend: schema + auth done; recipe/orders/users/challenges APIs landing across Sprint 2 and 3
-- ⏳ Pending pages: Checkout, Supplier dashboard/inventory/orders, Admin panel, Admin highlights
+- ✅ Frontend pages: Home, Recipes, RecipeDetail, CreateRecipe, Challenges, Profile (with Flavor Profile tab), Cart, Checkout, AdminPanel
+- ✅ Frontend shared: API wrappers, auth/routing, toast, NotFound, shared UI kit, SubstitutionManager, SubstitutionPicker
+- ✅ Backend: auth, users, admin (incl. admin/users + supplier verification) done
+- ⏳ Backend: recipes/orders/suppliers/challenges/highlights still landing
+- ⏳ Pending pages: Supplier dashboard/inventory/orders, Admin highlights
 
 ## Team
 
