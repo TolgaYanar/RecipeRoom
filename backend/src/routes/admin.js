@@ -258,4 +258,100 @@ router.post('/content/:type/:id/moderate', async (req, res) => {
   }
 });
 
+// GET /api/admin/users
+// Joins User against the four subtype tables to resolve user_type.
+// AdminPanel uses this for User Management and to derive overview KPIs.
+router.get('/users', async (req, res) => {
+  try {
+    const users = await query(
+      `SELECT u.user_id, u.UserName AS username, u.Email AS email, u.join_date,
+              CASE
+                WHEN a.user_id  IS NOT NULL THEN 'Administrator'
+                WHEN vc.user_id IS NOT NULL THEN 'Verified_Chef'
+                WHEN ls.user_id IS NOT NULL THEN 'Local_Supplier'
+                WHEN hc.user_id IS NOT NULL THEN 'Home_Cook'
+                ELSE NULL
+              END AS user_type,
+              ls.business_name AS supplier_name,
+              ls.address       AS supplier_address
+       FROM User u
+       LEFT JOIN Administrator   a  ON u.user_id = a.user_id
+       LEFT JOIN Verified_Chef   vc ON u.user_id = vc.user_id
+       LEFT JOIN Local_Supplier  ls ON u.user_id = ls.user_id
+       LEFT JOIN Home_Cook       hc ON u.user_id = hc.user_id
+       ORDER BY u.join_date DESC`
+    );
+
+    res.json(users);
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/pending-suppliers — mirrors /pending-chefs
+router.get('/pending-suppliers', async (req, res) => {
+  try {
+    const suppliers = await query(
+      `SELECT u.user_id, u.UserName AS username, u.Email AS email, u.join_date,
+              ls.business_name, ls.address, ls.contact_number
+       FROM Local_Supplier ls
+       JOIN User u ON ls.user_id = u.user_id
+       ORDER BY u.join_date ASC`
+    );
+
+    res.json(suppliers);
+  } catch (err) {
+    console.error('Error fetching suppliers:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/suppliers/:id/approve — no-op (already in Local_Supplier)
+router.post('/suppliers/:id/approve', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.id);
+    if (isNaN(supplierId)) {
+      return res.status(400).json({ error: 'Invalid supplier ID' });
+    }
+
+    const [supplier] = await query(
+      'SELECT user_id FROM Local_Supplier WHERE user_id = ?',
+      [supplierId]
+    );
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json({ message: 'Supplier approved successfully' });
+  } catch (err) {
+    console.error('Error approving supplier:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/suppliers/:id/reject — revoke supplier status
+router.post('/suppliers/:id/reject', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.id);
+    if (isNaN(supplierId)) {
+      return res.status(400).json({ error: 'Invalid supplier ID' });
+    }
+
+    const result = await query(
+      'DELETE FROM Local_Supplier WHERE user_id = ?',
+      [supplierId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json({ message: 'Supplier rejected successfully' });
+  } catch (err) {
+    console.error('Error rejecting supplier:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

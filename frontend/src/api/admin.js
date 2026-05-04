@@ -27,6 +27,19 @@ export const deleteAdminIngredient = (id) =>
 export const moderateContent = (type, id, data) =>
   client.post(`/admin/content/${type}/${id}/moderate`, data).then(r => r.data);
 
+// user listing + supplier verification (mirror of the chef flow)
+export const getAdminUsers = () =>
+  client.get('/admin/users').then(r => r.data);
+
+export const getPendingSuppliers = () =>
+  client.get('/admin/pending-suppliers').then(r => r.data);
+
+export const approveSupplier = (id) =>
+  client.post(`/admin/suppliers/${id}/approve`).then(r => r.data);
+
+export const rejectSupplier = (id) =>
+  client.post(`/admin/suppliers/${id}/reject`).then(r => r.data);
+
 // Featured_Selection CRUD (B18)
 export const getAdminHighlights = () =>
   client.get('/admin/highlights').then(r => r.data);
