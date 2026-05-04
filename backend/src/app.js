@@ -11,6 +11,12 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/recipes', require('./routes/recipes'));
+app.use('/api/ingredients', require('./routes/ingredients'));
+app.use('/api/reviews', require('./routes/reviews'));
+app.use('/api/highlights', require('./routes/highlights'));
+app.use('/api/substitutions', require('./routes/substitutions'));
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'RecipeRoom API is running' });

@@ -257,5 +257,11 @@ router.post('/content/:type/:id/moderate', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
+// Delegate admin highlight CRUD to highlights router
+const highlightsRouter = require('./highlights');
+router.use('/highlights', (req, res, next) => {
+  // Rewrite path so highlights router sees /admin prefix correctly
+  req.url = '/admin' + (req.url === '/' ? '' : req.url);
+  highlightsRouter(req, res, next);
+});
 module.exports = router;
