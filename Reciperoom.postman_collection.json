@@ -1,0 +1,1447 @@
+{
+    "info": {
+      "name": "RecipeRoom API",
+      "description": "CS353 Group 7. Import into Postman or Thunder Client. Set base_url and token variables. Run Login first, copy token from response into the token variable.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      {
+        "key": "base_url",
+        "value": "http://localhost:3001"
+      },
+      {
+        "key": "token",
+        "value": "PASTE_YOUR_TOKEN_HERE"
+      }
+    ],
+    "item": [
+      {
+        "name": "Auth",
+        "item": [
+          {
+            "name": "Login",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/login",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"email\": \"cook@example.com\",\n  \"password\": \"password123\"\n}"
+              },
+              "description": "Returns { user, token }. Copy token into the collection token variable."
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "// Automatically save token to collection variable after login",
+                    "if (pm.response.code === 200) {",
+                    "    const body = pm.response.json();",
+                    "    if (body.token) {",
+                    "        pm.collectionVariables.set('token', body.token);",
+                    "        console.log('Token saved automatically.');",
+                    "    }",
+                    "}"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          },
+          {
+            "name": "Register Home Cook",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/register/home-cook",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"testcook\",\n  \"email\": \"cook@example.com\",\n  \"password\": \"password123\",\n  \"target_daily_calories\": 2000,\n  \"primary_diet_goal\": \"Balanced\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Register Verified Chef",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/register/chef",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"testchef\",\n  \"email\": \"chef@example.com\",\n  \"password\": \"password123\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Register Local Supplier",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/register/supplier",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"testsupplier\",\n  \"email\": \"supplier@example.com\",\n  \"password\": \"password123\",\n  \"business_name\": \"Green Valley Farms\",\n  \"address\": \"123 Farm Road\",\n  \"contact_number\": \"+905551234567\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Register Admin",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/register/admin",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"testadmin\",\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"admin_level\": \"1\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Get Current User (me)",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/auth/me"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Users",
+        "item": [
+          {
+            "name": "Get User Profile",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/users/1",
+              "description": "Public."
+            }
+          },
+          {
+            "name": "Update User Profile",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"new_username\"\n}"
+              },
+              "description": "Self only. Only username field."
+            }
+          },
+          {
+            "name": "Get User Recipes",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/users/1/recipes"
+            }
+          },
+          {
+            "name": "Get Royalties (Chef only)",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/royalties",
+              "description": "Verified_Chef self only. Returns { total_points, per_recipe[] }."
+            }
+          },
+          {
+            "name": "Get Meal Lists",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists",
+              "description": "Self only. Returns [{ list_name, recipe_count }]."
+            }
+          },
+          {
+            "name": "Create Meal List",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"My Weeknight Dinners\"\n}"
+              }
+            }
+          },
+          {
+            "name": "Rename Meal List",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists/My%20Weeknight%20Dinners",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Weeknight Favourites\"\n}"
+              },
+              "description": ":listId is the current list_name (URL-encoded)."
+            }
+          },
+          {
+            "name": "Delete Meal List",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists/My%20Weeknight%20Dinners"
+            }
+          },
+          {
+            "name": "Add Recipe to Meal List",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists/My%20Weeknight%20Dinners/recipes",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipe_id\": 1\n}"
+              }
+            }
+          },
+          {
+            "name": "Remove Recipe from Meal List",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/meal-lists/My%20Weeknight%20Dinners/recipes/1"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Recipes",
+        "item": [
+          {
+            "name": "List Recipes",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{base_url}}/api/recipes?q=pasta&cuisine=Italian&difficulty=Medium&cookingTime=30-60&minRating=4&ingredient=tomato&category=Main%20Course&page=1&limit=9",
+                "host": [
+                  "{{base_url}}"
+                ],
+                "path": [
+                  "api",
+                  "recipes"
+                ],
+                "query": [
+                  {
+                    "key": "q",
+                    "value": "pasta",
+                    "description": "title/description search"
+                  },
+                  {
+                    "key": "cuisine",
+                    "value": "Italian",
+                    "description": "tag name"
+                  },
+                  {
+                    "key": "difficulty",
+                    "value": "Medium",
+                    "description": "Easy|Medium|Hard"
+                  },
+                  {
+                    "key": "cookingTime",
+                    "value": "30-60",
+                    "description": "under-30|30-60|over-60"
+                  },
+                  {
+                    "key": "minRating",
+                    "value": "4"
+                  },
+                  {
+                    "key": "ingredient",
+                    "value": "tomato",
+                    "description": "LIKE search"
+                  },
+                  {
+                    "key": "category",
+                    "value": "Main Course",
+                    "description": "tag name"
+                  },
+                  {
+                    "key": "page",
+                    "value": "1"
+                  },
+                  {
+                    "key": "limit",
+                    "value": "9"
+                  }
+                ]
+              },
+              "description": "All params optional. Returns { items, total, page, totalPages }."
+            }
+          },
+          {
+            "name": "Get My Recipes",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/my"
+            }
+          },
+          {
+            "name": "Get Recipe Detail",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/recipes/1",
+              "description": "Returns recipe + publisher_id + parent_recipe + ingredients + tags + media + reviews + substitutions."
+            }
+          },
+          {
+            "name": "Create Recipe",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Classic Carbonara\",\n  \"description\": \"A traditional Roman pasta dish.\",\n  \"cooking_time\": 30,\n  \"difficulty\": \"Medium\",\n  \"servings\": 4,\n  \"image_url\": \"https://example.com/carbonara.jpg\",\n  \"ingredients\": [\n    { \"ingredient_id\": 1, \"quantity\": 400, \"unit\": \"g\" },\n    { \"ingredient_id\": 2, \"quantity\": 200, \"unit\": \"g\" }\n  ],\n  \"tags\": [1, 3],\n  \"substitutions\": [\n    { \"source_ingredient_id\": 2, \"sub_ingredient_id\": 5, \"quantity_multiplier\": 1.0 }\n  ]\n}"
+              },
+              "description": "Home_Cook or Verified_Chef. Status starts as draft. Returns { id, message }."
+            }
+          },
+          {
+            "name": "Update Recipe",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Classic Carbonara Updated\",\n  \"description\": \"Updated.\",\n  \"cooking_time\": 35,\n  \"difficulty\": \"Medium\",\n  \"servings\": 4\n}"
+              },
+              "description": "Author only."
+            }
+          },
+          {
+            "name": "Delete Recipe",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1",
+              "description": "Author or Administrator."
+            }
+          },
+          {
+            "name": "Fork Recipe",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/fork",
+              "description": "Home_Cook or Verified_Chef. Copies ingredients + tags + substitutions, sets parent_recipe_id. Returns { id, message }."
+            }
+          },
+          {
+            "name": "Publish Recipe",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/publish",
+              "description": "Author only. draft -> published."
+            }
+          },
+          {
+            "name": "Get Recipe Performance",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/performance",
+              "description": "Returns { recipe_id, cook_log_count, completed_orders, avg_rating, review_count, royalty_points }."
+            }
+          },
+          {
+            "name": "Get Recipe Media",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/recipes/1/media",
+              "description": "Returns [{ url, media_type, is_thumbnail }]."
+            }
+          },
+          {
+            "name": "Add Recipe Media",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/media",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"url\": \"https://example.com/image.jpg\",\n  \"media_type\": \"image\",\n  \"is_thumbnail\": true\n}"
+              },
+              "description": "Author only. media_type: image|video."
+            }
+          },
+          {
+            "name": "Update Recipe Media",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/media/https%3A%2F%2Fexample.com%2Fimage.jpg",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"is_thumbnail\": true\n}"
+              },
+              "description": "Author only. :mediaUrl must be URL-encoded."
+            }
+          },
+          {
+            "name": "Delete Recipe Media",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/media/https%3A%2F%2Fexample.com%2Fimage.jpg",
+              "description": "Author only. Auto-promotes next media to thumbnail if deleted was thumbnail."
+            }
+          },
+          {
+            "name": "Get Recipe Substitutions",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/recipes/1/substitutions"
+            }
+          },
+          {
+            "name": "Add Recipe Substitution",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/substitutions",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"source_ingredient_id\": 2,\n  \"sub_ingredient_id\": 5,\n  \"quantity_multiplier\": 1.0\n}"
+              },
+              "description": "Author only. Returns 400 if same ingredient (D04 trigger)."
+            }
+          },
+          {
+            "name": "Delete Recipe Substitution",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/recipes/1/substitutions/2-5",
+              "description": "Author only. subId format: sourceId-subId"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Ingredients",
+        "item": [
+          {
+            "name": "Search Ingredients",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{base_url}}/api/ingredients/search?q=tomato",
+                "host": [
+                  "{{base_url}}"
+                ],
+                "path": [
+                  "api",
+                  "ingredients",
+                  "search"
+                ],
+                "query": [
+                  {
+                    "key": "q",
+                    "value": "tomato"
+                  }
+                ]
+              },
+              "description": "LIKE autocomplete, up to 20 results. Satisfies CS353 flexible LIKE query criterion."
+            }
+          },
+          {
+            "name": "Get Ingredient Substitutes",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/ingredients/1/substitutes",
+              "description": "Returns ingredients with same generic_taxonomy_name."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Reviews",
+        "item": [
+          {
+            "name": "Get Reviews for Recipe",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/reviews/recipe/1",
+              "description": "Returns [{ recipe_id, user_id, score, body, timestamp, author }]."
+            }
+          },
+          {
+            "name": "Post Review",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/reviews/recipe/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"score\": 5,\n  \"comment\": \"Absolutely delicious!\"\n}"
+              },
+              "description": "score 1-5, comment maps to review_text. 409 if already reviewed."
+            }
+          },
+          {
+            "name": "Delete Review",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/reviews/1",
+              "description": "Own review only. :recipeId in URL."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Highlights",
+        "item": [
+          {
+            "name": "Get Home Feed",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/highlights/home",
+              "description": "Token optional. Returns { featured[], trending[], recommendations[], active_challenges[] }."
+            }
+          },
+          {
+            "name": "Get All Selections (Admin)",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/highlights/admin",
+              "description": "Admin only. Note: mounted at /api/highlights/admin (not /api/admin/highlights)."
+            }
+          },
+          {
+            "name": "Create Featured Selection (Admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/highlights/admin",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"selection_type\": \"Editor's Pick\",\n  \"start_date\": \"2026-05-01\",\n  \"end_date\": \"2026-05-07\",\n  \"recipe_ids\": [1, 2, 3]\n}"
+              },
+              "description": "Admin only. recipe_ids array links to Highlights table."
+            }
+          },
+          {
+            "name": "Update Featured Selection (Admin)",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/highlights/admin/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"end_date\": \"2026-05-14\"\n}"
+              },
+              "description": "Admin only."
+            }
+          },
+          {
+            "name": "Delete Featured Selection (Admin)",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/highlights/admin/1",
+              "description": "Admin only. Cascades to Highlights table."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Substitutions (Shop This Meal)",
+        "item": [
+          {
+            "name": "Plan Substitutions",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/substitutions/plan",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipe_id\": 1\n}"
+              },
+              "description": "No auth required. Returns [{ ingredient_id, ingredient_name, base_quantity, unit, in_stock, preferred_supplier, alternatives[] }]."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Orders",
+        "item": [
+          {
+            "name": "Place Order",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/orders",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipe_id\": 1,\n  \"scaled_serving\": 4,\n  \"total_price\": 44.39,\n  \"items\": [\n    { \"ingredient_id\": 1, \"supplier_id\": 2, \"purchased_quantity\": 2, \"subtotal\": 5.99 },\n    { \"ingredient_id\": 2, \"supplier_id\": 2, \"purchased_quantity\": 1, \"subtotal\": 3.99 }\n  ]\n}"
+              },
+              "description": "Home_Cook only. Recipe must be published. Transaction: inserts Order + Fulfills_Item, deducts Stocks. Returns { order_id, status, message }."
+            }
+          },
+          {
+            "name": "Get My Orders",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/orders/mine",
+              "description": "Home_Cook only."
+            }
+          },
+          {
+            "name": "Get Supplier Orders",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/orders/supplier",
+              "description": "Local_Supplier only."
+            }
+          },
+          {
+            "name": "Update Order Status",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/orders/1/status",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"status\": \"Confirmed\"\n}"
+              },
+              "description": "Local_Supplier only. Confirmed|Ready|Completed|Declined. Completed fires royalty trigger. Declined restores stock."
+            }
+          },
+          {
+            "name": "Get Order Detail",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/orders/1",
+              "description": "Creator or involved supplier. Returns order + items[]."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Suppliers",
+        "item": [
+          {
+            "name": "Get All Stock Status",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/suppliers/stock-status",
+              "description": "Public. Reads Supplier_Stock_Status view."
+            }
+          },
+          {
+            "name": "Add to Inventory",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/suppliers/inventory",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"ingredient_id\": 1,\n  \"price_per_unit\": 2.99,\n  \"current_stock\": 150,\n  \"unit\": \"kg\"\n}"
+              },
+              "description": "Local_Supplier only."
+            }
+          },
+          {
+            "name": "Update Inventory Item",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/suppliers/inventory/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"price_per_unit\": 3.49,\n  \"current_stock\": 200\n}"
+              },
+              "description": "Local_Supplier only. :id = ingredient_id."
+            }
+          },
+          {
+            "name": "Delete Inventory Item",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/suppliers/inventory/1",
+              "description": "Local_Supplier only. 409 if open orders exist."
+            }
+          },
+          {
+            "name": "Get Supplier Inventory",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/suppliers/1/inventory",
+              "description": "Supplier owner or Admin. Returns { supplier, kpis, inventory[] }."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Challenges",
+        "item": [
+          {
+            "name": "Get All Challenges",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/challenges",
+              "description": "Public. Returns active and past challenges."
+            }
+          },
+          {
+            "name": "Get Challenge Detail",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges/1",
+              "description": "Token optional. Returns challenge + leaderboard + my_participation."
+            }
+          },
+          {
+            "name": "Create Challenge \u2014 New Badge (Admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Zero Waste Week\",\n  \"description\": \"Cook meals with no waste.\",\n  \"start_date\": \"2026-06-01\",\n  \"end_date\": \"2026-06-07\",\n  \"required_tag_id\": 1,\n  \"badge_name\": \"Zero Waste Hero\",\n  \"badge_description\": \"Completed the Zero Waste Week challenge\",\n  \"badge_icon_url\": \"https://example.com/badges/zero-waste.png\"\n}"
+              },
+              "description": "Admin only. Creates new badge and links it via Offers table."
+            }
+          },
+          {
+            "name": "Create Challenge \u2014 Existing Badge (Admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Local Roots Challenge\",\n  \"description\": \"Use only local ingredients.\",\n  \"start_date\": \"2026-06-01\",\n  \"end_date\": \"2026-06-30\",\n  \"required_tag_id\": 2,\n  \"badge_id\": 1\n}"
+              },
+              "description": "Admin only. Links existing seeded badge."
+            }
+          },
+          {
+            "name": "Create Challenge \u2014 No Badge (Admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Meatless Monday\",\n  \"description\": \"Plant-based recipes only.\",\n  \"start_date\": \"2026-06-01\",\n  \"end_date\": \"2026-06-30\",\n  \"required_tag_id\": 3\n}"
+              },
+              "description": "Admin only. No badge."
+            }
+          },
+          {
+            "name": "Join Challenge",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges/1/entries",
+              "description": "Home_Cook only. Idempotent. 400 if challenge ended."
+            }
+          },
+          {
+            "name": "Finalize Winner (Admin)",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges/1/winner",
+              "description": "Admin only. end_date must have passed. Winner = highest score. Awards badge via Unlocks."
+            }
+          },
+          {
+            "name": "Update Challenge (Admin)",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/challenges/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"title\": \"Zero Waste Week Extended\",\n  \"end_date\": \"2026-06-14\"\n}"
+              },
+              "description": "Admin only."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Cook Log",
+        "item": [
+          {
+            "name": "Log a Cook",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/cook-log",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipe_id\": 1,\n  \"scaled_serving\": 4\n}"
+              },
+              "description": "Self only. ON DUPLICATE KEY UPDATE for same-day re-log. Awards +1 challenge score."
+            }
+          },
+          {
+            "name": "Get Cook Log",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": {
+                "raw": "{{base_url}}/api/users/1/cook-log?page=1&limit=10",
+                "host": [
+                  "{{base_url}}"
+                ],
+                "path": [
+                  "api",
+                  "users",
+                  "1",
+                  "cook-log"
+                ],
+                "query": [
+                  {
+                    "key": "page",
+                    "value": "1"
+                  },
+                  {
+                    "key": "limit",
+                    "value": "10"
+                  }
+                ]
+              },
+              "description": "Self only."
+            }
+          },
+          {
+            "name": "Delete Cook Log Entry",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/cook-log/1",
+              "description": "Self only. :entryId = recipe_id."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Flavor Profile",
+        "item": [
+          {
+            "name": "Get Flavor Profile",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/flavor-profile",
+              "description": "Self only. Returns [{ ingredient_id, ingredient, category, score, auto }]."
+            }
+          },
+          {
+            "name": "Update Flavor Profile (manual)",
+            "request": {
+              "method": "PUT",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/flavor-profile",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"items\": [\n    { \"ingredient_id\": 1, \"score\": 80 },\n    { \"ingredient_id\": 2, \"score\": 60 }\n  ]\n}"
+              },
+              "description": "Self only. Upserts Has_Affinity. is_inferred=FALSE."
+            }
+          },
+          {
+            "name": "Infer from Cook Log",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/flavor-profile/infer",
+              "description": "Self only. Auto-calculates from Logs_Cook. is_inferred=TRUE. Score capped at 100."
+            }
+          },
+          {
+            "name": "Get Recommendations",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/users/1/flavor-profile/recommendations",
+              "description": "Self only. Up to 12 recipes ranked by affinity_match_score. Excludes cooked recipes."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Admin",
+        "item": [
+          {
+            "name": "Get Chefs",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/pending-chefs",
+              "description": "Administrator only."
+            }
+          },
+          {
+            "name": "Approve Chef",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/chefs/1/approve",
+              "description": "Administrator only."
+            }
+          },
+          {
+            "name": "Reject Chef",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/chefs/1/reject",
+              "description": "Administrator only. Removes from Verified_Chef."
+            }
+          },
+          {
+            "name": "Get All Ingredients",
+            "request": {
+              "method": "GET",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/ingredients"
+            }
+          },
+          {
+            "name": "Create Ingredient",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/ingredients",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Roma Tomato\",\n  \"generic_taxonomy_name\": \"Tomato\",\n  \"calories_per_unit\": 18,\n  \"protein_g\": 0.9,\n  \"carbs_g\": 3.9,\n  \"fat_g\": 0.2\n}"
+              },
+              "description": "Administrator only. name and generic_taxonomy_name required."
+            }
+          },
+          {
+            "name": "Update Ingredient",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/ingredients/1",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"name\": \"Roma Tomato\",\n  \"generic_taxonomy_name\": \"Tomato\",\n  \"calories_per_unit\": 20,\n  \"protein_g\": 0.9,\n  \"carbs_g\": 3.9,\n  \"fat_g\": 0.2\n}"
+              },
+              "description": "Administrator only. Both name and generic_taxonomy_name required."
+            }
+          },
+          {
+            "name": "Delete Ingredient",
+            "request": {
+              "method": "DELETE",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/ingredients/1",
+              "description": "Administrator only. 409 if used in any recipe."
+            }
+          },
+          {
+            "name": "Moderate Recipe",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/content/recipe/1/moderate",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"action\": \"flag\"\n}"
+              },
+              "description": "Administrator only. Upserts Moderates table."
+            }
+          },
+          {
+            "name": "Moderate Review",
+            "request": {
+              "method": "POST",
+              "header": [
+                {
+                  "key": "Authorization",
+                  "value": "Bearer {{token}}"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{base_url}}/api/admin/content/review/1/moderate",
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"reviewer_id\": 5\n}"
+              },
+              "description": "Administrator only. Deletes all reviews by reviewer_id for recipe :id."
+            }
+          }
+        ]
+      },
+      {
+        "name": "Health Check",
+        "item": [
+          {
+            "name": "Health Check",
+            "request": {
+              "method": "GET",
+              "header": [],
+              "url": "{{base_url}}/api/health"
+            }
+          }
+        ]
+      }
+    ]
+  }
