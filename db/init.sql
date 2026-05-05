@@ -105,6 +105,7 @@ CREATE TABLE Participates_in(
     user_id INT NOT NULL,
     challenge_id INT NOT NULL,
     progress_status VARCHAR(255) NOT NULL,
+    score INT NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, challenge_id),
     FOREIGN KEY (user_id) REFERENCES Home_Cook(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (challenge_id) REFERENCES Kitchen_Challenge(challenge_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -170,6 +171,7 @@ CREATE TABLE Recipe(
     parent_recipe_id INT,
     publisher_home_cook_id INT,
     publisher_chef_id INT,
+    status ENUM('draft', 'published') NOT NULL DEFAULT 'draft',
     -- NOTE: owner constraint (exactly one publisher) enforced at application level
     -- MySQL does not allow CHECK on columns used in FK referential actions
     FOREIGN KEY (parent_recipe_id) REFERENCES Recipe(recipe_id) ON DELETE SET NULL ON UPDATE CASCADE,
@@ -298,7 +300,7 @@ CREATE TABLE Fulfills_Item(
 -- =============================================
 
 CREATE VIEW Recipe_Summary AS
-SELECT r.recipe_id, r.title, r.description, r.cooking_time, r.difficulty, r.base_servings,
+SELECT r.recipe_id, r.title, r.description, r.cooking_time, r.difficulty, r.base_servings, r.status,
        u.UserName AS publisher_name,
        vc.user_id AS is_verified_chef,
        AVG(rr.score) AS avg_rating,

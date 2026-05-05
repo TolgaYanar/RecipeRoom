@@ -312,4 +312,7 @@ router.delete('/:id/meal-lists/:listId/recipes/:recipeId', requireLogin, async (
   }
 });
 
+router.use('/:id/flavor-profile', require('./flavorProfile'));
+router.use('/:id/cook-log', require('./cookLog'));
+
 module.exports = router;

@@ -354,4 +354,11 @@ router.post('/suppliers/:id/reject', async (req, res) => {
   }
 });
 
+// Delegate admin highlight CRUD to highlights router
+const highlightsRouter = require('./highlights');
+router.use('/highlights', (req, res, next) => {
+  // Rewrite path so highlights router sees /admin prefix correctly
+  req.url = '/admin' + (req.url === '/' ? '' : req.url);
+  highlightsRouter(req, res, next);
+});
 module.exports = router;
