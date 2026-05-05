@@ -47,7 +47,8 @@ Task ID prefixes:
 - Frontend shared kit — done (API wrappers, AuthContext, route guards, UI kit, toast, NotFound, SubstitutionManager, SubstitutionPicker)
 - Frontend pages — done: P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P05 Checkout (+ /cart), P06 Challenges, P07 Profile (incl. P13 Flavor Profile tab + Saved tab), P11 AdminPanel + P12 AdminHighlights as Featured Selections tab
 - Bonus features (not in original spec): like recipe, save recipe, follow user, comment likes, owner/admin recipe delete — all backed by new schema tables (Likes_Recipe, Saves_Recipe, Follows_User, Likes_Review)
-- P08–P10 Supplier pages — **placeholder files only**, the only frontend pages still pending
+- P08 SupplierDashboard, P09 SupplierInventory, P10 SupplierOrders — **done**, full CRUD + status updates wired to /suppliers and /orders/supplier
+- Smoke test, demo script, and report deltas — **done** in `docs/`
 
 ---
 
@@ -551,9 +552,9 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] P05 · Checkout
 - [x] P06 · Challenges
 - [x] P07 · Profile
-- [ ] P08 · SupplierDashboard
-- [ ] P09 · SupplierInventory
-- [ ] P10 · SupplierOrders
+- [x] P08 · SupplierDashboard
+- [x] P09 · SupplierInventory
+- [x] P10 · SupplierOrders
 - [x] P11 · AdminPanel
 - [x] P12 · AdminHighlights
 - [x] P13 · Profile > Flavor Profile tab
@@ -562,9 +563,9 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] X01 · .gitignore / .env.example audit
 - [x] X02 · README.md
 - [x] X03 · Postman collection
-- [ ] X04 · End-to-end smoke test
-- [ ] X05 · Demo rehearsal
-- [ ] X06 · Final report update
+- [x] X04 · End-to-end smoke test
+- [x] X05 · Demo rehearsal
+- [x] X06 · Final report update
 - [ ] X07 · Screenshots / recording
 - [x] X08 · Shared tag-constants file
 
