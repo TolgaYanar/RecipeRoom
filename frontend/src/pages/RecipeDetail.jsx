@@ -3,17 +3,23 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Clock, ChefHat, Users, MapPin, Heart,
   MessageCircle, Bookmark, GitBranch, Star, ShoppingCart,
-  Minus, Plus, BadgeCheck,
+  Minus, Plus, BadgeCheck, Trash2,
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import OwnerSubstitutionEditor from '../components/OwnerSubstitutionEditor';
 import StarRating from '../components/StarRating';
 import SubstitutionPicker from '../components/SubstitutionPicker';
+import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { addRecipeToCart } from '../lib/cart';
 import { useToast } from '../context/ToastContext';
-import { getRecipe, forkRecipe, getRecipeMedia } from '../api/recipes';
-import { getReviews, createReview } from '../api/reviews';
+import {
+  getRecipe, getRecipeMedia, deleteRecipe,
+  getRecipeLikeState, toggleRecipeLike,
+  getRecipeSaveState, toggleRecipeSave,
+} from '../api/recipes';
+import { getReviews, createReview, getReviewLikes, toggleReviewLike } from '../api/reviews';
+import { getFollowState, toggleFollow } from '../api/users';
 import { addCookLog } from '../api/cookLog';
 
 const DIFFICULTY_PILL = {
@@ -38,7 +44,13 @@ export default function RecipeDetail() {
   const [comment,  setComment]  = useState('');
   const [rating,   setRating]   = useState(5);
   const [posting,  setPosting]  = useState(false);
-  const [shopOpen, setShopOpen] = useState(false);
+  const [shopOpen, setShopOpen]     = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const [liked,      setLiked]      = useState(false);
+  const [likeCount,  setLikeCount]  = useState(0);
+  const [saved,      setSaved]      = useState(false);
+  const [following,  setFollowing]  = useState(false);
 
   useEffect(() => {
     getRecipe(id)
@@ -49,11 +61,39 @@ export default function RecipeDetail() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
 
-    getReviews(id).then(setReviews).catch(() => setReviews([]));
+    Promise.all([
+      getReviews(id).catch(() => []),
+      getReviewLikes(id).catch(() => []),
+    ]).then(([list, likes]) => setReviews(mergeLikes(list, likes)));
     getRecipeMedia(id)
       .then((data) => setMedia(Array.isArray(data) ? data : (data?.items ?? [])))
       .catch(() => setMedia([]));
   }, [id]);
+
+  // per-user state — only meaningful when logged in
+  useEffect(() => {
+    if (!user) { setLiked(false); setLikeCount(0); setSaved(false); setFollowing(false); return; }
+    let cancelled = false;
+    getRecipeLikeState(id)
+      .then((d) => { if (!cancelled) { setLiked(!!d.liked); setLikeCount(d.like_count ?? 0); } })
+      .catch(() => {});
+    getRecipeSaveState(id)
+      .then((d) => { if (!cancelled) setSaved(!!d.saved); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [id, user]);
+
+  // follow state depends on the recipe's author id, which arrives with the recipe
+  useEffect(() => {
+    if (!user || !recipe) return;
+    const ownerId = recipe.publisher_id ?? recipe.user_id ?? recipe.author_id;
+    if (!ownerId || Number(ownerId) === Number(user.user_id)) return;
+    let cancelled = false;
+    getFollowState(ownerId)
+      .then((d) => { if (!cancelled) setFollowing(!!d.following); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [recipe, user]);
 
   if (loading) {
     return (
@@ -80,6 +120,8 @@ export default function RecipeDetail() {
 
   const ownerId = recipe.publisher_id ?? recipe.user_id ?? recipe.author_id;
   const isOwner = user && ownerId != null && Number(user.user_id) === Number(ownerId);
+  const isAdmin = user?.user_type === 'Administrator';
+  const canDelete = isOwner || isAdmin;
 
   const handleCookedThis = async () => {
     if (!user) { openAuth(); return; }
@@ -88,6 +130,55 @@ export default function RecipeDetail() {
       toast.success('Logged to your cook log');
     } catch {
       // already toasted by the interceptor
+    }
+  };
+
+  const handleDeleteRecipe = async () => {
+    try {
+      await deleteRecipe(Number(id));
+      toast.success('Recipe deleted');
+      navigate('/recipes');
+    } catch {
+      // already toasted by the interceptor
+      setConfirmDel(false);
+    }
+  };
+
+  const handleLikeRecipe = async () => {
+    if (!user) { openAuth(); return; }
+    setLiked((v) => !v);
+    setLikeCount((n) => n + (liked ? -1 : 1));
+    try {
+      const r = await toggleRecipeLike(Number(id));
+      setLiked(!!r.liked);
+      setLikeCount(r.like_count ?? 0);
+    } catch {
+      setLiked((v) => !v);
+      setLikeCount((n) => n + (liked ? 1 : -1));
+    }
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!user) { openAuth(); return; }
+    setSaved((v) => !v);
+    try {
+      const r = await toggleRecipeSave(Number(id));
+      setSaved(!!r.saved);
+    } catch {
+      setSaved((v) => !v);
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!user) { openAuth(); return; }
+    const ownerId = recipe?.publisher_id ?? recipe?.user_id ?? recipe?.author_id;
+    if (!ownerId) return;
+    setFollowing((v) => !v);
+    try {
+      const r = await toggleFollow(ownerId);
+      setFollowing(!!r.following);
+    } catch {
+      setFollowing((v) => !v);
     }
   };
 
@@ -112,14 +203,32 @@ export default function RecipeDetail() {
     toast.success('Added to cart');
   };
 
-  const handleFork = async () => {
+  const handleFork = () => {
     if (!user) { openAuth(); return; }
+    navigate(`/create?fork=${id}`);
+  };
+
+  const handleCommentLike = async (target) => {
+    if (!user) { openAuth(); return; }
+    const key = reviewKey(target);
+    // optimistic flip — interceptor toasts on error, we resync from the response
+    setReviews((prev) => prev.map((c) => reviewKey(c) === key
+      ? { ...c, liked_by_me: !c.liked_by_me, like_count: (c.like_count || 0) + (c.liked_by_me ? -1 : 1) }
+      : c));
     try {
-      const forked = await forkRecipe(Number(id));
-      toast.success('Recipe forked');
-      navigate(forked?.id ? `/recipes/${forked.id}` : `/create?fork=${id}`);
+      const r = await toggleReviewLike({
+        recipe_id:        Number(id),
+        review_user_id:   target.user_id,
+        review_timestamp: target.timestamp,
+      });
+      setReviews((prev) => prev.map((c) => reviewKey(c) === key
+        ? { ...c, liked_by_me: r.liked, like_count: r.like_count }
+        : c));
     } catch {
-      navigate(`/create?fork=${id}`);
+      // already toasted by the interceptor; revert
+      setReviews((prev) => prev.map((c) => reviewKey(c) === key
+        ? { ...c, liked_by_me: !c.liked_by_me, like_count: (c.like_count || 0) + (c.liked_by_me ? -1 : 1) }
+        : c));
     }
   };
 
@@ -128,8 +237,9 @@ export default function RecipeDetail() {
     if (!user) { openAuth(); return; }
     setPosting(true);
     try {
-      const created = await createReview(Number(id), { rating, comment: comment.trim() });
-      setReviews((prev) => [normalizeReview(created, user), ...prev]);
+      const text = comment.trim();
+      const created = await createReview(Number(id), { score: rating, comment: text });
+      setReviews((prev) => [normalizeReview(created, user, text), ...prev]);
       toast.success('Comment posted');
       setComment('');
       setRating(5);
@@ -162,13 +272,18 @@ export default function RecipeDetail() {
           </p>
         )}
 
-        <AuthorRow recipe={recipe} />
+        <AuthorRow
+          recipe={recipe}
+          following={following}
+          onFollow={handleFollow}
+          showFollow={!!user && !isOwner}
+        />
 
         <div className="flex items-center flex-wrap gap-2 mb-5">
           {recipe.cuisine  && <Tag>{recipe.cuisine}</Tag>}
           {recipe.category && <Tag>{prettyCategory(recipe.category)}</Tag>}
           {recipe.difficulty && (
-            <span className={`${DIFFICULTY_PILL[recipe.difficulty]} text-[12px] font-semibold px-3 py-1 rounded-full`}>
+            <span className={`${DIFFICULTY_PILL[(recipe.difficulty || '').toLowerCase()] || 'bg-[#F5F5F5] text-[#1A1A1A]'} text-[12px] font-semibold px-3 py-1 rounded-full`}>
               {capitalize(recipe.difficulty)}
             </span>
           )}
@@ -200,14 +315,22 @@ export default function RecipeDetail() {
 
         <div className="flex items-center justify-between flex-wrap gap-3 pb-6 border-b border-[#EBEBEB] mb-8">
           <div className="flex items-center gap-1">
-            <ActionChip icon={<Heart className="w-4 h-4" strokeWidth={1.5} />}>
-              {recipe.like_count ?? 0} Likes
+            <ActionChip
+              onClick={handleLikeRecipe}
+              active={liked}
+              icon={<Heart className="w-4 h-4" strokeWidth={1.5} fill={liked ? '#B71C1C' : 'none'} />}
+            >
+              {likeCount} Likes
             </ActionChip>
             <ActionChip icon={<MessageCircle className="w-4 h-4" strokeWidth={1.5} />}>
               {reviews.length} Comments
             </ActionChip>
-            <ActionChip icon={<Bookmark className="w-4 h-4" strokeWidth={1.5} />}>
-              Saved
+            <ActionChip
+              onClick={handleSaveRecipe}
+              active={saved}
+              icon={<Bookmark className="w-4 h-4" strokeWidth={1.5} fill={saved ? '#1B3A2D' : 'none'} />}
+            >
+              {saved ? 'Saved' : 'Save'}
             </ActionChip>
           </div>
           <div className="flex items-center gap-2">
@@ -217,6 +340,16 @@ export default function RecipeDetail() {
             <PrimaryButton onClick={handleFork} icon={<GitBranch className="w-4 h-4" strokeWidth={1.5} />}>
               Fork This Recipe
             </PrimaryButton>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDel(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#B71C1C] text-[#B71C1C] rounded-lg text-[13px] font-semibold hover:bg-[#FFEBEE] transition-colors"
+              >
+                <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                Delete
+              </button>
+            )}
           </div>
         </div>
 
@@ -243,6 +376,7 @@ export default function RecipeDetail() {
           onRatingChange={setRating}
           onPost={postComment}
           posting={posting}
+          onLikeComment={handleCommentLike}
         />
       </div>
 
@@ -253,6 +387,16 @@ export default function RecipeDetail() {
           onConfirm={handleConfirmShop}
         />
       )}
+
+      <ConfirmModal
+        isOpen={confirmDel}
+        title="Delete this recipe?"
+        message="This will permanently remove the recipe and its ingredients, steps, comments, and substitutions. This can't be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDeleteRecipe}
+        onCancel={() => setConfirmDel(false)}
+      />
     </div>
   );
 }
@@ -325,7 +469,7 @@ function MediaCarousel({ media, fallback, alt }) {
   );
 }
 
-function AuthorRow({ recipe }) {
+function AuthorRow({ recipe, following, onFollow, showFollow }) {
   const handle =
     recipe.publisher_handle ??
     (recipe.publisher_name?.toLowerCase().replace(/\s+/g, '_') ?? '');
@@ -348,12 +492,20 @@ function AuthorRow({ recipe }) {
           {handle && <div className="text-[13px] text-[#6B6B6B]">@{handle}</div>}
         </div>
       </div>
-      <button
-        type="button"
-        className="px-4 py-1.5 border border-[#D0D0D0] rounded-lg text-[13px] font-medium text-[#1A1A1A] hover:border-[#1B3A2D] transition-colors"
-      >
-        Follow
-      </button>
+      {showFollow && (
+        <button
+          type="button"
+          onClick={onFollow}
+          className={
+            'px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ' +
+            (following
+              ? 'bg-[#1B3A2D] text-white hover:bg-[#142B22]'
+              : 'border border-[#D0D0D0] text-[#1A1A1A] hover:border-[#1B3A2D]')
+          }
+        >
+          {following ? 'Following' : 'Follow'}
+        </button>
+      )}
     </div>
   );
 }
@@ -472,7 +624,7 @@ function InstructionsCard({ steps }) {
   );
 }
 
-function CommentsSection({ comments, comment, onChange, rating, onRatingChange, onPost, posting }) {
+function CommentsSection({ comments, comment, onChange, rating, onRatingChange, onPost, posting, onLikeComment }) {
   return (
     <section className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
       <h2 className="text-[18px] font-bold text-[#1A1A1A] mb-5">
@@ -520,9 +672,20 @@ function CommentsSection({ comments, comment, onChange, rating, onRatingChange, 
                 )}
               </div>
               <p className="text-[14px] text-[#1A1A1A] leading-relaxed mb-1.5">{c.body}</p>
-              <button className="inline-flex items-center gap-1.5 text-[12px] text-[#6B6B6B] hover:text-[#B71C1C] transition-colors">
-                <Heart className="w-3.5 h-3.5" strokeWidth={1.5} />
-                {c.likes ?? 0}
+              <button
+                type="button"
+                onClick={() => onLikeComment?.(c)}
+                className={
+                  'inline-flex items-center gap-1.5 text-[12px] transition-colors ' +
+                  (c.liked_by_me ? 'text-[#B71C1C]' : 'text-[#6B6B6B] hover:text-[#B71C1C]')
+                }
+              >
+                <Heart
+                  className="w-3.5 h-3.5"
+                  strokeWidth={1.5}
+                  fill={c.liked_by_me ? '#B71C1C' : 'none'}
+                />
+                {c.like_count ?? 0}
               </button>
             </div>
           </div>
@@ -552,11 +715,20 @@ function Stat({ icon, label, value }) {
   );
 }
 
-function ActionChip({ icon, children }) {
+function ActionChip({ icon, children, onClick, active }) {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] text-[#6B6B6B] hover:text-[#1B3A2D] hover:bg-[#FAF8F5] transition-colors"
+      onClick={onClick}
+      disabled={!onClick}
+      className={
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors ' +
+        (active
+          ? 'text-[#1B3A2D] font-semibold bg-[#F5F8F6]'
+          : (onClick
+            ? 'text-[#6B6B6B] hover:text-[#1B3A2D] hover:bg-[#FAF8F5]'
+            : 'text-[#6B6B6B] cursor-default'))
+      }
     >
       {icon}
       {children}
@@ -594,13 +766,36 @@ function prettyCategory(value) {
 
 // Reviews API may return a row that doesn't yet match the comment-row shape.
 // Keep the new comment optimistic with the user's own data so it renders.
-function normalizeReview(created, user) {
+function normalizeReview(created, user, fallbackBody = '') {
   return {
-    id:     created?.id     ?? `tmp-${Date.now()}`,
-    author: created?.author ?? user?.username ?? 'You',
-    handle: created?.handle ?? (user?.username || '').toLowerCase().replace(/\s+/g, '_'),
-    date:   created?.date   ?? new Date().toLocaleDateString('en-GB'),
-    body:   created?.body   ?? created?.comment ?? '',
-    likes:  created?.likes  ?? 0,
+    id:           created?.id     ?? `tmp-${Date.now()}`,
+    user_id:      created?.user_id ?? user?.user_id,
+    timestamp:    created?.timestamp ?? new Date().toISOString(),
+    author:       created?.author ?? user?.username ?? 'You',
+    handle:       created?.handle ?? (user?.username || '').toLowerCase().replace(/\s+/g, '_'),
+    date:         created?.date   ?? new Date().toLocaleDateString('en-GB'),
+    body:         created?.body   ?? created?.comment ?? fallbackBody,
+    like_count:   0,
+    liked_by_me:  false,
   };
+}
+
+// composite key matching the Rates_Review PK shape
+function reviewKey(c) {
+  return `${c.user_id}:${c.timestamp}`;
+}
+
+function mergeLikes(reviews, likes) {
+  const map = new Map();
+  for (const l of (likes ?? [])) {
+    map.set(`${l.review_user_id}:${l.review_timestamp}`, l);
+  }
+  return (reviews ?? []).map((c) => {
+    const m = map.get(reviewKey(c));
+    return {
+      ...c,
+      like_count:  m ? Number(m.like_count) : 0,
+      liked_by_me: m ? Boolean(Number(m.liked_by_me)) : false,
+    };
+  });
 }

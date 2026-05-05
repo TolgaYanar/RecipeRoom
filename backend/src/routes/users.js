@@ -315,4 +315,96 @@ router.delete('/:id/meal-lists/:listId/recipes/:recipeId', requireLogin, async (
 router.use('/:id/flavor-profile', require('./flavorProfile'));
 router.use('/:id/cook-log', require('./cookLog'));
 
+// Follow graph — same toggle/check pattern as recipe like/save.
+//   POST /users/:id/follow  · current user follows/unfollows :id
+//   GET  /users/:id/follow  · returns { following, follower_count, following_count }
+//   GET  /users/:id/saved   · current user's saved recipes (only the owner can read)
+
+router.post('/:id/follow', requireLogin, async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: "You can't follow yourself" });
+  }
+  try {
+    const existing = await query(
+      'SELECT 1 FROM Follows_User WHERE follower_id = ? AND followee_id = ?',
+      [req.user.id, targetId]
+    );
+    if (existing.length > 0) {
+      await query(
+        'DELETE FROM Follows_User WHERE follower_id = ? AND followee_id = ?',
+        [req.user.id, targetId]
+      );
+    } else {
+      await query(
+        'INSERT INTO Follows_User (follower_id, followee_id) VALUES (?, ?)',
+        [req.user.id, targetId]
+      );
+    }
+    const [{ count }] = await query(
+      'SELECT COUNT(*) AS count FROM Follows_User WHERE followee_id = ?',
+      [targetId]
+    );
+    res.json({ following: existing.length === 0, follower_count: count });
+  } catch (err) {
+    console.error('POST /users/:id/follow error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/follow', requireLogin, async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+  try {
+    const [me] = await query(
+      'SELECT 1 AS hit FROM Follows_User WHERE follower_id = ? AND followee_id = ?',
+      [req.user.id, targetId]
+    );
+    const [{ followers }] = await query(
+      'SELECT COUNT(*) AS followers FROM Follows_User WHERE followee_id = ?',
+      [targetId]
+    );
+    const [{ following }] = await query(
+      'SELECT COUNT(*) AS following FROM Follows_User WHERE follower_id = ?',
+      [targetId]
+    );
+    res.json({
+      following: !!me,
+      follower_count:  followers,
+      following_count: following,
+    });
+  } catch (err) {
+    console.error('GET /users/:id/follow error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/saved', requireLogin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user ID' });
+  if (userId !== req.user.id) {
+    return res.status(403).json({ error: 'Saved list is private' });
+  }
+  try {
+    const rows = await query(
+      `SELECT r.recipe_id, r.title, r.cooking_time, r.difficulty,
+              rm.media_url AS thumbnail_url,
+              u.UserName AS publisher_name,
+              s.saved_at
+       FROM Saves_Recipe s
+       JOIN Recipe r  ON s.recipe_id = r.recipe_id
+       JOIN User u    ON COALESCE(r.publisher_chef_id, r.publisher_home_cook_id) = u.user_id
+       LEFT JOIN Recipe_Media rm ON rm.recipe_id = r.recipe_id AND rm.is_thumbnail = TRUE
+       WHERE s.user_id = ?
+       ORDER BY s.saved_at DESC`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /users/:id/saved error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

@@ -267,6 +267,44 @@ CREATE TABLE Rates_Review(
     FOREIGN KEY (user_id) REFERENCES Home_Cook(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE Likes_Review(
+    recipe_id INT NOT NULL,
+    review_user_id INT NOT NULL,
+    review_timestamp DATETIME NOT NULL,
+    liker_user_id INT NOT NULL,
+    PRIMARY KEY (recipe_id, review_user_id, review_timestamp, liker_user_id),
+    FOREIGN KEY (recipe_id, review_user_id, review_timestamp)
+        REFERENCES Rates_Review(recipe_id, user_id, timestamp) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (liker_user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Likes_Recipe(
+    recipe_id INT NOT NULL,
+    user_id INT NOT NULL,
+    PRIMARY KEY (recipe_id, user_id),
+    FOREIGN KEY (recipe_id) REFERENCES Recipe(recipe_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Saves_Recipe(
+    recipe_id INT NOT NULL,
+    user_id INT NOT NULL,
+    saved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (recipe_id, user_id),
+    FOREIGN KEY (recipe_id) REFERENCES Recipe(recipe_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- No-self-follow is enforced at the route layer — MySQL forbids CHECK
+-- on FK-cascade columns (same restriction that bit the substitution trigger).
+CREATE TABLE Follows_User(
+    follower_id INT NOT NULL,
+    followee_id INT NOT NULL,
+    PRIMARY KEY (follower_id, followee_id),
+    FOREIGN KEY (follower_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (followee_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 -- =============================================
 -- ORDER TABLES
 -- =============================================

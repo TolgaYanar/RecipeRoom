@@ -8,3 +8,9 @@ export const getReviews = (recipeId) =>
 
 export const deleteReview = (id) =>
   client.delete(`/reviews/${id}`).then(r => r.data);
+
+export const toggleReviewLike = (data) =>
+  client.post('/reviews/like', data).then(r => r.data);
+
+export const getReviewLikes = (recipeId) =>
+  client.get(`/reviews/recipe/${recipeId}/likes`).then(r => r.data);

@@ -341,7 +341,16 @@ function ChallengeCard({ challenge: c, onJoin, onLeave, onLeaderboard }) {
         )}
       </div>
 
-      {joined ? (
+      {c.completed ? (
+        <button
+          type="button"
+          onClick={onLeaderboard}
+          className="w-full inline-flex items-center justify-center gap-1.5 py-2 bg-white border border-[#D0D0D0] rounded-lg text-[13px] font-semibold text-[#1A1A1A] hover:border-[#1B3A2D] transition-colors"
+        >
+          <TrendingUp className="w-3.5 h-3.5" strokeWidth={1.5} />
+          View Leaderboard
+        </button>
+      ) : joined ? (
         <div className="flex items-center gap-2">
           <button
             type="button"

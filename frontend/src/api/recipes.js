@@ -40,6 +40,19 @@ export const updateRecipeMedia = (id, mediaId, data) =>
 export const deleteRecipeMedia = (id, mediaId) =>
   client.delete(`/recipes/${id}/media/${mediaId}`).then(r => r.data);
 
+// Per-user recipe state (like / save)
+export const getRecipeLikeState = (id) =>
+  client.get(`/recipes/${id}/like`).then(r => r.data);
+
+export const toggleRecipeLike = (id) =>
+  client.post(`/recipes/${id}/like`).then(r => r.data);
+
+export const getRecipeSaveState = (id) =>
+  client.get(`/recipes/${id}/save`).then(r => r.data);
+
+export const toggleRecipeSave = (id) =>
+  client.post(`/recipes/${id}/save`).then(r => r.data);
+
 // Allows_Substitution (B22)
 export const getRecipeSubstitutions = (id) =>
   client.get(`/recipes/${id}/substitutions`).then(r => r.data);

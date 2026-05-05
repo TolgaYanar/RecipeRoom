@@ -126,12 +126,12 @@ export default function Navbar() {
               <>
                 {!isSupplier && (
                   <>
-                    <button className="p-2 rounded-lg transition-all hover:bg-white/10">
+                    <Link to="/recipes" className="p-2 rounded-lg transition-all hover:bg-white/10" aria-label="Search recipes">
                       <Search className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.75)' }} strokeWidth={1.5} />
-                    </button>
-                    <button className="p-2 rounded-lg transition-all hover:bg-white/10">
+                    </Link>
+                    <Link to="/profile?tab=saved" className="p-2 rounded-lg transition-all hover:bg-white/10" aria-label="Saved recipes">
                       <Bookmark className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.75)' }} strokeWidth={1.5} />
-                    </button>
+                    </Link>
                     <Link to="/cart" className="relative p-2 rounded-lg transition-all hover:bg-white/10">
                       <ShoppingCart className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.75)' }} strokeWidth={1.5} />
                       {cartCount > 0 && (

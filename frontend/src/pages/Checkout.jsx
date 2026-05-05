@@ -65,33 +65,40 @@ export default function Checkout() {
   const completeOrder = async () => {
     setSubmitting(true);
     try {
-      // flat line items — each carries supplier_id so the backend can
-      // group them into per-supplier Order rows on insert
-      const items = cart.recipes.flatMap((r) => {
+      // Orders table has one recipe per row, so fire one POST per recipe in
+      // the cart. delivery + payment are collected in the form for UX but
+      // aren't persisted yet (no schema for them).
+      for (const r of cart.recipes) {
         const ratio = r.servings / (r.base_servings || r.servings || 1);
-        return (r.ingredients || []).map((ing) => ({
-          recipe_id:     r.recipe_id,
-          ingredient_id: ing.ingredient_id ?? null,
-          name:          ing.name,
-          quantity:      Number(ing.quantity || 0) * ratio,
-          unit:          ing.unit ?? null,
-          unit_price:    Number(ing.price) || 0,
-          supplier_id:   ing.supplier?.id ?? null,
-        }));
-      });
+        const items = (r.ingredients || [])
+          .filter((ing) => ing.ingredient_id != null && ing.supplier?.id != null)
+          .map((ing) => ({
+            ingredient_id:      ing.ingredient_id,
+            supplier_id:        ing.supplier.id,
+            purchased_quantity: Number(ing.quantity || 0) * ratio,
+            subtotal:           (Number(ing.price) || 0) * ratio,
+          }));
 
-      await createOrder({
-        delivery_address: address.trim(),
-        delivery_notes:   notes.trim() || null,
-        payment_method:   payment,
-        items,
-      });
+        if (items.length === 0) {
+          throw new Error(`No supplier-priced items for "${r.title}". Open Shop This Meal to pick suppliers first.`);
+        }
+
+        const total_price = items.reduce((sum, it) => sum + it.subtotal, 0);
+
+        await createOrder({
+          recipe_id:      r.recipe_id,
+          scaled_serving: r.servings,
+          total_price,
+          items,
+        });
+      }
 
       clearCart();
       toast.success('Order placed — see Profile › Orders');
       navigate('/profile');
-    } catch {
-      // already toasted by the interceptor
+    } catch (err) {
+      // pre-flight error gets surfaced; backend errors already toasted
+      if (err?.message && !err?.response) toast.error(err.message);
       setSubmitting(false);
     }
   };

@@ -141,11 +141,10 @@ function FeedSection({ highlights }) {
   const [tab, setTab] = useState('for-you');
   const [tabRecipes, setTabRecipes] = useState({ recent: null, following: null });
 
-  // Pull these straight from the highlights payload
   const trending = highlights?.trending ?? [];
   const recommendations = highlights?.recommendations ?? [];
 
-  // Recent / Following each get their own /recipes call the first time the tab is opened
+  // Recent / Following are lazy — only fire /recipes the first time each tab opens
   useEffect(() => {
     if ((tab === 'recent' || tab === 'following') && tabRecipes[tab] === null) {
       const params = tab === 'following' ? { following: 1 } : { sort: 'recent' };
@@ -238,13 +237,13 @@ function ChallengesSection({ challenges }) {
               <Trophy className="w-4 h-4" strokeWidth={1.5} />
               {activeCount} Active
             </span>
-            <button
-              type="button"
+            <Link
+              to="/challenges"
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1B3A2D] text-white rounded-lg text-[13px] font-semibold hover:bg-[#142B22] transition-colors"
             >
               <Plus className="w-4 h-4" strokeWidth={2} />
               Log Recipe
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -348,39 +347,49 @@ function ChallengeCard({ challenge: c }) {
         )}
       </div>
 
-      {joined ? (
+      {c.completed ? (
+        <Link
+          to="/challenges"
+          className="block w-full text-center py-2 bg-white border border-[#D0D0D0] rounded-lg text-[13px] font-semibold text-[#1A1A1A] hover:border-[#1B3A2D] transition-colors"
+        >
+          View Leaderboard
+        </Link>
+      ) : joined ? (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Link
+            to="/challenges"
             className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 bg-white border border-[#D0D0D0] rounded-lg text-[13px] font-semibold text-[#1A1A1A] hover:border-[#1B3A2D] transition-colors"
           >
             <TrendingUp className="w-3.5 h-3.5" strokeWidth={1.5} />
             Leaderboard
-          </button>
-          <button
-            type="button"
+          </Link>
+          <Link
+            to="/challenges"
             className="px-4 py-2 bg-white border border-[#D0D0D0] rounded-lg text-[13px] font-semibold text-[#1A1A1A] hover:border-[#B71C1C] hover:text-[#B71C1C] transition-colors"
           >
             Leave
-          </button>
+          </Link>
         </div>
       ) : (
-        <button
-          type="button"
-          className="w-full py-2.5 bg-[#A8893E] text-white rounded-lg text-[13px] font-semibold hover:bg-[#917430] transition-colors"
+        <Link
+          to="/challenges"
+          className="block w-full text-center py-2.5 bg-[#A8893E] text-white rounded-lg text-[13px] font-semibold hover:bg-[#917430] transition-colors"
         >
           Join Challenge
-        </button>
+        </Link>
       )}
     </div>
   );
 }
 
 function RecommendedSection({ highlights }) {
-  const recipes = useMemo(
-    () => (highlights?.recommendations ?? []).slice(0, 6),
-    [highlights]
-  );
+  // backend only fills recommendations after the user has a flavor profile;
+  // fall back to editor's picks so new users still see something here
+  const recipes = useMemo(() => {
+    const recs = highlights?.recommendations ?? [];
+    const source = recs.length > 0 ? recs : (highlights?.featured ?? []);
+    return source.slice(0, 6);
+  }, [highlights]);
 
   return (
     <section className="bg-white">

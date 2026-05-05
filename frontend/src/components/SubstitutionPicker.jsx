@@ -32,7 +32,7 @@ export default function SubstitutionPicker({ recipe, onClose, onConfirm }) {
         const arr = Array.isArray(data?.ingredients) ? data.ingredients
                   : Array.isArray(data) ? data
                   : [];
-        setPlan(arr);
+        setPlan(arr.map(normalizeRow));
       })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
@@ -279,4 +279,34 @@ function formatLine(qty, unit, name) {
   if (!q) return name;
   const qtyStr = Number.isInteger(q) ? `${q}` : q.toFixed(2).replace(/\.?0+$/, '');
   return `${qtyStr}${unit ? unit + ' ' : ' '}${name}`;
+}
+
+// Adapt the planner's response (preferred_supplier with price_per_unit) into
+// the picker's flatter option shape (preferred_supplier_item with a unit-total price).
+function normalizeRow(row) {
+  const baseQty = Number(row.base_quantity ?? row.quantity) || 0;
+  return {
+    ingredient_id: row.ingredient_id,
+    name:          row.ingredient_name ?? row.name,
+    quantity:      baseQty,
+    unit:          row.unit,
+    preferred_supplier_item: toOption(row.preferred_supplier ?? row.preferred_supplier_item, row, baseQty),
+    alternatives:  (row.alternatives ?? []).map((alt) => toOption(alt, row, baseQty)).filter(Boolean),
+  };
+}
+
+function toOption(s, row, baseQty) {
+  if (!s) return null;
+  const unitPrice = Number(s.price_per_unit ?? s.price) || 0;
+  return {
+    ingredient_id: s.ingredient_id ?? row.ingredient_id,
+    name:          s.ingredient_name ?? s.name ?? row.ingredient_name ?? row.name,
+    price:         unitPrice * baseQty,
+    in_stock:      s.in_stock ?? row.in_stock,
+    supplier: {
+      id:   s.supplier_id ?? s.supplier?.id ?? null,
+      name: s.supplier_name ?? s.supplier?.name ?? '',
+      distance_miles: s.distance_miles ?? s.supplier?.distance_miles ?? null,
+    },
+  };
 }

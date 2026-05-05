@@ -40,9 +40,11 @@ export const approveSupplier = (id) =>
 export const rejectSupplier = (id) =>
   client.post(`/admin/suppliers/${id}/reject`).then(r => r.data);
 
-// Featured_Selection CRUD (B18)
+// Featured_Selection CRUD. Backend's row shape uses selection_id /
+// selection_type — flatten to id/title here so the AdminPanel doesn't have
+// to know about either spelling.
 export const getAdminHighlights = () =>
-  client.get('/admin/highlights').then(r => r.data);
+  client.get('/admin/highlights').then((r) => (r.data ?? []).map(normalizeHighlight));
 
 export const createAdminHighlight = (data) =>
   client.post('/admin/highlights', data).then(r => r.data);
@@ -52,3 +54,18 @@ export const updateAdminHighlight = (id, data) =>
 
 export const deleteAdminHighlight = (id) =>
   client.delete(`/admin/highlights/${id}`).then(r => r.data);
+
+function normalizeHighlight(h) {
+  if (!h) return h;
+  return {
+    id:         h.selection_id ?? h.id,
+    title:      h.selection_type ?? h.title ?? h.name,
+    start_date: h.start_date,
+    end_date:   h.end_date,
+    is_active:  !!h.is_active,
+    active:     !!h.is_active,
+    recipes:    h.recipes ?? [],
+    recipe_count: h.recipe_count ?? (h.recipes?.length ?? 0),
+    curator:    h.curator_name ?? null,
+  };
+}

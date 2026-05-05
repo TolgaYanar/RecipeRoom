@@ -125,9 +125,17 @@ export default function CreateRecipe() {
         difficulty,
         prep_time: Number(prepTime) || 0,
         cook_time: Number(cookTime) || 0,
+        cooking_time: (Number(prepTime) || 0) + (Number(cookTime) || 0),
         servings: Number(servings) || 1,
         diets,
-        ingredients: ingredients.filter((i) => i.name.trim()),
+        ingredients: ingredients
+          .filter((i) => i.name.trim())
+          .map((i) => ({
+            ingredient_id: i.id ?? i.ingredient_id ?? null,
+            quantity:      Number(i.quantity) || 0,
+            unit:          i.unit || null,
+            name:          i.name.trim(),
+          })),
         steps: steps.map((s) => s.trim()).filter(Boolean),
         substitutions,
       });

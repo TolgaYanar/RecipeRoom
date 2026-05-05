@@ -722,4 +722,94 @@ router.delete('/:id/substitutions/:subId', requireLogin, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Per-user recipe state — toggle + check are kept thin so the frontend can
+// drive optimistic UI and the responses stay easy to merge.
+//
+//   POST /recipes/:id/like  · toggles Likes_Recipe, returns { liked, like_count }
+//   GET  /recipes/:id/like  · returns { liked, like_count } for the current user
+//   POST /recipes/:id/save  · toggles Saves_Recipe, returns { saved }
+//   GET  /recipes/:id/save  · returns { saved } for the current user
+
+router.post('/:id/like', requireLogin, async (req, res) => {
+  const recipeId = parseInt(req.params.id);
+  if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
+  try {
+    const userId = req.user.id;
+    const existing = await query(
+      'SELECT 1 FROM Likes_Recipe WHERE recipe_id = ? AND user_id = ?',
+      [recipeId, userId]
+    );
+    if (existing.length > 0) {
+      await query('DELETE FROM Likes_Recipe WHERE recipe_id = ? AND user_id = ?', [recipeId, userId]);
+    } else {
+      await query('INSERT INTO Likes_Recipe (recipe_id, user_id) VALUES (?, ?)', [recipeId, userId]);
+    }
+    const [{ count }] = await query(
+      'SELECT COUNT(*) AS count FROM Likes_Recipe WHERE recipe_id = ?',
+      [recipeId]
+    );
+    res.json({ liked: existing.length === 0, like_count: count });
+  } catch (err) {
+    console.error('POST /recipes/:id/like error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/like', requireLogin, async (req, res) => {
+  const recipeId = parseInt(req.params.id);
+  if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
+  try {
+    const userId = req.user.id;
+    const [me] = await query(
+      'SELECT 1 AS hit FROM Likes_Recipe WHERE recipe_id = ? AND user_id = ?',
+      [recipeId, userId]
+    );
+    const [{ count }] = await query(
+      'SELECT COUNT(*) AS count FROM Likes_Recipe WHERE recipe_id = ?',
+      [recipeId]
+    );
+    res.json({ liked: !!me, like_count: count });
+  } catch (err) {
+    console.error('GET /recipes/:id/like error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/save', requireLogin, async (req, res) => {
+  const recipeId = parseInt(req.params.id);
+  if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
+  try {
+    const userId = req.user.id;
+    const existing = await query(
+      'SELECT 1 FROM Saves_Recipe WHERE recipe_id = ? AND user_id = ?',
+      [recipeId, userId]
+    );
+    if (existing.length > 0) {
+      await query('DELETE FROM Saves_Recipe WHERE recipe_id = ? AND user_id = ?', [recipeId, userId]);
+    } else {
+      await query('INSERT INTO Saves_Recipe (recipe_id, user_id) VALUES (?, ?)', [recipeId, userId]);
+    }
+    res.json({ saved: existing.length === 0 });
+  } catch (err) {
+    console.error('POST /recipes/:id/save error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/save', requireLogin, async (req, res) => {
+  const recipeId = parseInt(req.params.id);
+  if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
+  try {
+    const [me] = await query(
+      'SELECT 1 AS hit FROM Saves_Recipe WHERE recipe_id = ? AND user_id = ?',
+      [recipeId, req.user.id]
+    );
+    res.json({ saved: !!me });
+  } catch (err) {
+    console.error('GET /recipes/:id/save error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

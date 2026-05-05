@@ -31,3 +31,13 @@ export const addToMealList = (id, listId, data) =>
 
 export const removeFromMealList = (id, listId, recipeId) =>
   client.delete(`/users/${id}/meal-lists/${listId}/recipes/${recipeId}`).then(r => r.data);
+
+// Follow graph + saved recipes
+export const getFollowState = (id) =>
+  client.get(`/users/${id}/follow`).then(r => r.data);
+
+export const toggleFollow = (id) =>
+  client.post(`/users/${id}/follow`).then(r => r.data);
+
+export const getSavedRecipes = (id) =>
+  client.get(`/users/${id}/saved`).then(r => r.data);

@@ -212,7 +212,29 @@ router.patch('/:id/status', requireLogin, requireRole('Local_Supplier'), async (
     }
   });
 
-  // ─────────────────────────────────────────────
+  // GET /api/orders/mine — list the current user's orders.
+// Defined before /:id since Express matches in registration order;
+// appending after would let /:id swallow the "mine" segment.
+router.get('/mine', requireLogin, async (req, res) => {
+  try {
+    const orders = await query(
+      `SELECT o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
+              r.recipe_id, r.title AS recipe_title,
+              (SELECT COUNT(*) FROM Fulfills_Item fi WHERE fi.order_id = o.order_id) AS item_count
+       FROM Orders o
+       JOIN Recipe r ON o.recipe_id = r.recipe_id
+       WHERE o.creator_id = ?
+       ORDER BY o.order_date DESC`,
+      [req.user.id]
+    );
+    res.json(orders);
+  } catch (err) {
+    console.error('GET /orders/mine error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─────────────────────────────────────────────
 // GET /api/orders/:id
 // SQL: SELECT * FROM Orders JOIN Recipe + SELECT * FROM Fulfills_Item JOIN Ingredient JOIN Local_Supplier
 // ─────────────────────────────────────────────

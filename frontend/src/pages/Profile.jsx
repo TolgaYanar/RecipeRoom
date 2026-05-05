@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Settings, MapPin, Sparkles, Plus, Trash2, Info, X, Package, ListOrdered } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import RecipeCard from '../components/RecipeCard';
@@ -7,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import {
   getUser, updateUser, getUserRecipes, getUserRoyalties,
   getMealLists, createMealList, deleteMealList,
+  getSavedRecipes, getFollowState,
 } from '../api/users';
 import { getMyOrders } from '../api/orders';
 import { getCookLog } from '../api/cookLog';
@@ -16,6 +18,7 @@ import {
 
 const TABS_BASE = [
   { id: 'my-recipes',     label: 'My Recipes'     },
+  { id: 'saved',          label: 'Saved'          },
   { id: 'meal-lists',     label: 'Meal Lists'     },
   { id: 'cook-log',       label: 'Cook Log'       },
   { id: 'orders',         label: 'Orders'         },
@@ -30,8 +33,11 @@ const INGREDIENT_PICK_LIST = [
 
 export default function Profile() {
   const { user } = useAuth();
-  const [tab, setTab] = useState('my-recipes');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'my-recipes';
+  const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(null);
+  const [follows, setFollows] = useState({ followers: 0, following: 0 });
   const [editing, setEditing] = useState(false);
   // bump to force a refetch (e.g. after Edit Profile saves)
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,11 +48,25 @@ export default function Profile() {
     getUser(user.user_id)
       .then((d) => { if (!cancelled) setProfile(d ?? {}); })
       .catch(() => { if (!cancelled) setProfile({}); });
+    getFollowState(user.user_id)
+      .then((d) => { if (!cancelled) setFollows({
+        followers: d.follower_count ?? 0,
+        following: d.following_count ?? 0,
+      }); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.user_id, reloadKey]);
 
   const reloadProfile = () => setReloadKey((k) => k + 1);
   const profileLoading = profile === null;
+
+  // keep the URL in sync so the Navbar's bookmark link lands on the right tab
+  const changeTab = (next) => {
+    setTab(next);
+    const params = new URLSearchParams(searchParams);
+    if (next === 'my-recipes') params.delete('tab'); else params.set('tab', next);
+    setSearchParams(params, { replace: true });
+  };
 
   if (!user) return null;
 
@@ -75,16 +95,17 @@ export default function Profile() {
           location={profile?.location || ''}
           bio={profile?.bio || ''}
           recipes={profile?.recipes_count ?? 0}
-          followers={profile?.followers_count ?? 0}
-          following={profile?.following_count ?? 0}
+          followers={follows.followers}
+          following={follows.following}
           onEdit={() => setEditing(true)}
         />
 
         <div className="mt-6 mb-8">
-          <SegmentedTabs tabs={tabs} value={tab} onChange={setTab} />
+          <SegmentedTabs tabs={tabs} value={tab} onChange={changeTab} />
         </div>
 
         {tab === 'my-recipes'    && <MyRecipesTab userId={user.user_id} />}
+        {tab === 'saved'         && <SavedRecipesTab userId={user.user_id} />}
         {tab === 'meal-lists'    && <MealListsTab userId={user.user_id} />}
         {tab === 'cook-log'      && <CookLogTab userId={user.user_id} />}
         {tab === 'orders'        && <OrdersTab />}
@@ -199,6 +220,25 @@ function MyRecipesTab({ userId }) {
   }, [userId]);
 
   return <RecipeRowFromState recipes={recipes} empty="You haven't published a recipe yet." />;
+}
+
+function SavedRecipesTab({ userId }) {
+  const [recipes, setRecipes] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSavedRecipes(userId)
+      .then((data) => { if (!cancelled) setRecipes(itemsOf(data)); })
+      .catch(()    => { if (!cancelled) setRecipes([]); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  return (
+    <RecipeRowFromState
+      recipes={recipes}
+      empty="No saved recipes yet — tap the bookmark on any recipe to save it."
+    />
+  );
 }
 
 function CookLogTab({ userId }) {
@@ -657,10 +697,10 @@ function OrdersTab() {
 }
 
 function OrderRow({ order: o }) {
-  const status = (o.status || 'pending').toLowerCase();
-  const placed = o.placed_at ?? o.created_at ?? o.date;
-  const total  = o.total ?? o.total_amount ?? 0;
-  const items  = o.items ?? o.line_items ?? [];
+  const status    = (o.status || 'pending').toLowerCase();
+  const placed    = o.order_date ?? o.placed_at ?? o.created_at ?? o.date;
+  const total     = o.total_price ?? o.total ?? 0;
+  const itemCount = o.item_count ?? (o.items?.length ?? 0);
 
   return (
     <div className="bg-white border border-[#EBEBEB] rounded-xl p-4">
@@ -675,7 +715,7 @@ function OrderRow({ order: o }) {
             </div>
             <div className="text-[12px] text-[#6B6B6B]">
               {placed ? new Date(placed).toLocaleDateString() : '—'}
-              {o.supplier_name ? ` · ${o.supplier_name}` : ''}
+              {o.recipe_title ? ` · ${o.recipe_title}` : ''}
             </div>
           </div>
         </div>
@@ -683,7 +723,7 @@ function OrderRow({ order: o }) {
       </div>
 
       <div className="flex items-center justify-between text-[13px] text-[#6B6B6B]">
-        <span>{items.length} item{items.length === 1 ? '' : 's'}</span>
+        <span>{itemCount} item{itemCount === 1 ? '' : 's'}</span>
         <span className="font-semibold text-[#1A1A1A]">
           ${Number(total).toFixed(2)}
         </span>

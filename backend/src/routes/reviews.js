@@ -86,4 +86,75 @@ router.delete('/:recipeId', requireLogin, async (req, res) => {
   }
 });
 
+// POST /api/reviews/like — toggle the current user's like on a comment.
+// Composite key in the body since Rates_Review's PK is (recipe, user, timestamp).
+router.post('/like', requireLogin, async (req, res) => {
+  const { recipe_id, review_user_id } = req.body;
+  if (!recipe_id || !review_user_id) {
+    return res.status(400).json({ error: 'recipe_id, review_user_id required' });
+  }
+  try {
+    // Look up the actual review's timestamp instead of trusting the one the
+    // frontend echoed back — round-tripping through ISO/UTC and back caused
+    // FK drift. (One review per user per recipe is enforced by createReview.)
+    const [reviewRow] = await query(
+      'SELECT timestamp FROM Rates_Review WHERE recipe_id = ? AND user_id = ? LIMIT 1',
+      [recipe_id, review_user_id]
+    );
+    if (!reviewRow) return res.status(404).json({ error: 'Review not found' });
+    const ts = reviewRow.timestamp;
+
+    const liker = req.user.id;
+    const existing = await query(
+      `SELECT 1 FROM Likes_Review
+       WHERE recipe_id = ? AND review_user_id = ? AND review_timestamp = ? AND liker_user_id = ?`,
+      [recipe_id, review_user_id, ts, liker]
+    );
+    if (existing.length > 0) {
+      await query(
+        `DELETE FROM Likes_Review
+         WHERE recipe_id = ? AND review_user_id = ? AND review_timestamp = ? AND liker_user_id = ?`,
+        [recipe_id, review_user_id, ts, liker]
+      );
+    } else {
+      await query(
+        `INSERT INTO Likes_Review (recipe_id, review_user_id, review_timestamp, liker_user_id)
+         VALUES (?, ?, ?, ?)`,
+        [recipe_id, review_user_id, ts, liker]
+      );
+    }
+    const [{ count }] = await query(
+      `SELECT COUNT(*) AS count FROM Likes_Review
+       WHERE recipe_id = ? AND review_user_id = ? AND review_timestamp = ?`,
+      [recipe_id, review_user_id, ts]
+    );
+    res.json({ liked: existing.length === 0, like_count: count });
+  } catch (err) {
+    console.error('POST /reviews/like error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/reviews/recipe/:id/likes — per-review like_count and liked_by_me
+router.get('/recipe/:id/likes', requireLogin, async (req, res) => {
+  const recipeId = parseInt(req.params.id);
+  if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
+  try {
+    const liker = req.user.id;
+    const rows = await query(
+      `SELECT review_user_id, review_timestamp,
+              COUNT(*) AS like_count,
+              SUM(CASE WHEN liker_user_id = ? THEN 1 ELSE 0 END) > 0 AS liked_by_me
+       FROM Likes_Review
+       WHERE recipe_id = ?
+       GROUP BY review_user_id, review_timestamp`,
+      [liker, recipeId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /reviews/recipe/:id/likes error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

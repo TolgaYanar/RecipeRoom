@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, Star, Bookmark, ShoppingCart } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getRecipeSaveState, toggleRecipeSave } from '../api/recipes';
 
 const DIFFICULTY_STYLE = {
   easy:   'bg-[rgba(45,106,79,0.85)]',
@@ -22,8 +24,31 @@ export default function RecipeCard({ recipe }) {
     cuisine,
   } = recipe;
 
+  const { user, openAuth } = useAuth();
   const [saved, setSaved] = useState(false);
   const diffKey = difficulty?.toLowerCase();
+
+  useEffect(() => {
+    if (!user || !recipe_id) return;
+    let cancelled = false;
+    getRecipeSaveState(recipe_id)
+      .then((d) => { if (!cancelled) setSaved(!!d.saved); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user, recipe_id]);
+
+  const handleSaveClick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) { openAuth(); return; }
+    setSaved((v) => !v);
+    try {
+      const r = await toggleRecipeSave(recipe_id);
+      setSaved(!!r.saved);
+    } catch {
+      setSaved((v) => !v);
+    }
+  };
 
   return (
     <Link
@@ -37,6 +62,7 @@ export default function RecipeCard({ recipe }) {
             src={thumbnail_url}
             alt={title}
             className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#9E9E9E]">
@@ -60,7 +86,8 @@ export default function RecipeCard({ recipe }) {
 
         {/* Top-left: bookmark */}
         <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); setSaved(v => !v); }}
+          onClick={handleSaveClick}
+          aria-label={saved ? 'Remove from saved' : 'Save recipe'}
           className="absolute top-3 left-3 w-[30px] h-[30px] rounded-full bg-[rgba(0,0,0,0.35)] hover:bg-[rgba(0,0,0,0.55)] flex items-center justify-center transition-all"
         >
           <Bookmark
