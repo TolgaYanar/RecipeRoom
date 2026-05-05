@@ -42,14 +42,12 @@ Task ID prefixes:
 
 ## Status snapshot (as of today)
 
-- Database schema, views, and royalty trigger — **done**
-- `backend/src/routes/auth.js` (login + 4 register endpoints) — **done**
-- Frontend shared kit (Navbar, AuthModal, route guards, API wrappers, toast wiring, NotFound) — **done**
-- Frontend pages P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P06 Challenges, P07 Profile (with P13 Flavor Profile tab) — **done**, wired through Deniz's API wrappers
-- F08 SubstitutionManager — **done**, mounted in CreateRecipe and RecipeDetail (owner view)
-- P05 Checkout (with /cart) + F05 SubstitutionPicker — **done**, full Add-to-Cart → planner → /cart → /checkout → POST /api/orders flow live
-- P11 AdminPanel + P12 AdminHighlights — **done**, 6 tabs (Featured Selections covers P12 per spec); /admin/users and supplier verification appended to routes/admin.js (with permission)
-- P08–P10 Supplier pages — **placeholder files only**
+- Backend — **done end-to-end**: auth, users, admin (incl. /admin/users + supplier verification), recipes, ingredients, substitutions, reviews, orders, suppliers, challenges, highlights, flavor profile, cook log, recipe media
+- DB — schema + views + triggers + seed all merged; reset script works
+- Frontend shared kit — done (API wrappers, AuthContext, route guards, UI kit, toast, NotFound, SubstitutionManager, SubstitutionPicker)
+- Frontend pages — done: P01 Home, P02 Recipes, P03 RecipeDetail, P04 CreateRecipe, P05 Checkout (+ /cart), P06 Challenges, P07 Profile (incl. P13 Flavor Profile tab + Saved tab), P11 AdminPanel + P12 AdminHighlights as Featured Selections tab
+- Bonus features (not in original spec): like recipe, save recipe, follow user, comment likes, owner/admin recipe delete — all backed by new schema tables (Likes_Recipe, Saves_Recipe, Follows_User, Likes_Review)
+- P08–P10 Supplier pages — **placeholder files only**, the only frontend pages still pending
 
 ---
 
@@ -510,24 +508,24 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 - [x] B01 · Auth middleware + session
 - [x] B02 · DB helpers + error convention
 - [x] B03 · Update auth.js to issue tokens
-- [ ] B04 · Recipes API
-- [ ] B05 · Ingredients API
-- [ ] B06 · Shop This Meal / Substitution planner
-- [ ] B07 · Orders API
-- [ ] B08 · Suppliers & inventory API
+- [x] B04 · Recipes API
+- [x] B05 · Ingredients API
+- [x] B06 · Shop This Meal / Substitution planner
+- [x] B07 · Orders API
+- [x] B08 · Suppliers & inventory API
 - [x] B09 · Users / profile API
-- [ ] B10 · Reviews & ratings API
+- [x] B10 · Reviews & ratings API
 - [x] B11 · Admin API
-- [ ] B12 · Home highlights feed
-- [ ] B13 · Challenges API
-- [ ] B14 · Mount routes + CORS + error handler
+- [x] B12 · Home highlights feed
+- [x] B13 · Challenges API
+- [x] B14 · Mount routes + CORS + error handler
 - [x] B15 · Password hashing (bcrypt)
 - [x] B17 · Request validation middleware
-- [ ] B18 · Highlights admin API (Featured_Selection CRUD)
-- [ ] B19 · Flavor Profile / Affinity API
-- [ ] B20 · Cook Log API
-- [ ] B21 · Recipe_Media multi-asset API
-- [ ] B22 · Allows_Substitution management API
+- [x] B18 · Highlights admin API (Featured_Selection CRUD)
+- [x] B19 · Flavor Profile / Affinity API
+- [x] B20 · Cook Log API
+- [x] B21 · Recipe_Media multi-asset API
+- [x] B22 · Allows_Substitution management API
 
 ### Database
 - [x] D01 · Seed script
@@ -562,8 +560,8 @@ Tick each as it merges to `main`. When every box is checked, the project is fina
 
 ### Cross-cutting
 - [x] X01 · .gitignore / .env.example audit
-- [ ] X02 · README.md
-- [ ] X03 · Postman collection
+- [x] X02 · README.md
+- [x] X03 · Postman collection
 - [ ] X04 · End-to-end smoke test
 - [ ] X05 · Demo rehearsal
 - [ ] X06 · Final report update

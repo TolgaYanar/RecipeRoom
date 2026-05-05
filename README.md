@@ -41,11 +41,12 @@ sql/      Schema + seeds
 
 See [TASKS.md](TASKS.md) for the full master checklist. As of this commit:
 
-- ✅ Frontend pages: Home, Recipes, RecipeDetail, CreateRecipe, Challenges, Profile (with Flavor Profile tab), Cart, Checkout, AdminPanel
-- ✅ Frontend shared: API wrappers, auth/routing, toast, NotFound, shared UI kit, SubstitutionManager, SubstitutionPicker
-- ✅ Backend: auth, users, admin (incl. admin/users + supplier verification) done
-- ⏳ Backend: recipes/orders/suppliers/challenges/highlights still landing
-- ⏳ Pending pages: Supplier dashboard/inventory/orders, Admin highlights
+- ✅ Frontend pages: Home, Recipes, RecipeDetail, CreateRecipe, Cart, Checkout, Challenges, Profile (with Saved + Flavor Profile tabs), AdminPanel (Featured Selections tab covers AdminHighlights)
+- ✅ Frontend shared: API wrappers, auth/routing, toast, NotFound, UI kit, SubstitutionManager, SubstitutionPicker
+- ✅ Backend: auth, users, admin (with admin/users + supplier verification), recipes, ingredients, substitutions, reviews, orders, suppliers, challenges, highlights, flavor profile, cook log, recipe media — all merged
+- ✅ DB: schema, views, royalty + substitution triggers, seed + reset
+- ✅ Bonus features: like recipe, save recipe, follow user, comment likes, owner/admin recipe delete
+- ⏳ Pending pages: Supplier Dashboard, Supplier Inventory, Supplier Orders
 
 ## Team
 
