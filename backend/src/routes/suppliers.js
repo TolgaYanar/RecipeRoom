@@ -124,19 +124,6 @@ router.delete('/inventory/:id', requireLogin, requireRole('Local_Supplier'), asy
     if (isNaN(ingredientId)) return res.status(400).json({ error: 'Invalid ingredient ID' });
    
     try {
-      const [openOrders] = await query(
-        `SELECT COUNT(*) AS cnt
-         FROM Fulfills_Item fi
-         JOIN Orders o ON fi.order_id = o.order_id
-         WHERE fi.supplier_id = ? AND fi.ingredient_id = ?
-           AND o.status NOT IN ('Completed', 'Declined')`,
-        [req.user.id, ingredientId]
-      );
-      if (openOrders.cnt > 0) {
-        return res.status(409).json({
-          error: 'Cannot remove ingredient with open orders. Complete or decline pending orders first.',
-        });
-      }
    
       const result = await query(
         'DELETE FROM Stocks WHERE supplier_id = ? AND ingredient_id = ?',

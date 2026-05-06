@@ -3,7 +3,7 @@ const { query, withTransaction } = require('../utils/db');
 const { requireLogin, requireRole } = require('../middleware/auth');
  
 const router = express.Router();
- 
+const DELIVERY_FEE = 4.99;
 // ─────────────────────────────────────────────
 // POST /api/orders
 // Home Cook only.
@@ -19,11 +19,11 @@ const router = express.Router();
 //   }
 //
 // Transaction:
-//   1. INSERT Orders (status = 'Pending')
+//   1. INSERT Orders 
 //   2. INSERT Fulfills_Item per item
 //   3. UPDATE Stocks (deduct stock)
 //
-// Royalty trigger fires automatically when status later becomes 'Completed'.
+// Royalty trigger fires automatically when order is inserted.
 // Challenge score: +1 per qualifying purchase.
 // ─────────────────────────────────────────────
 router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
@@ -60,18 +60,18 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
     }
 
     const orderId = await withTransaction(async (conn) => {
-
+      const grandTotal = Number(total_price) + DELIVERY_FEE;
       const [[cook]] = await conn.execute(
         'SELECT balances FROM Home_Cook WHERE user_id = ? FOR UPDATE',
         [req.user.id]
       );
-      if (cook.balances < total_price) {
-        throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${total_price}`);
+      if (Number(cook.balances) < grandTotal) {
+        throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${grandTotal}`);
       }
 
       const [orderResult] = await conn.execute(
-        `INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving, status)
-         VALUES (NOW(), ?, ?, ?, ?, 'Pending')`,
+        `INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving)
+         VALUES (NOW(), ?, ?, ?, ?)`,
         [total_price, req.user.id, recipe_id, scaled_serving]
       );
       const newOrderId = orderResult.insertId;
@@ -98,24 +98,29 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
            VALUES (?, ?, ?, ?, ?)`,
           [newOrderId, ingredient_id, supplier_id, purchased_quantity, subtotal]
         );
-
+        
         await conn.execute(
           'UPDATE Stocks SET current_stock = current_stock - ? WHERE supplier_id = ? AND ingredient_id = ?',
           [purchased_quantity, supplier_id, ingredient_id]
         );
       }
-
       await conn.execute(
         'UPDATE Home_Cook SET balances = balances - ? WHERE user_id = ?',
-        [total_price, req.user.id]
+        [Number(total_price) + DELIVERY_FEE, req.user.id]
       );
 
       return newOrderId;
     });
 
     await awardChallengeScore(req.user.id, recipe_id, 1);
-    res.status(201).json({ order_id: orderId, status: 'Pending', message: 'Order placed successfully' });
 
+    res.status(201).json({
+      order_id: orderId,
+      ingredients_total: Number(total_price).toFixed(2),
+      delivery_fee: DELIVERY_FEE,
+      grand_total: (Number(total_price) + DELIVERY_FEE).toFixed(2),
+      message: 'Order placed successfully',
+    });
   } catch (err) {
     console.error('Error placing order:', err);
     if (err.message.startsWith('Insufficient balance')) {
@@ -155,81 +160,6 @@ router.get('/supplier', requireLogin, requireRole('Local_Supplier'), async (req,
     }
   });
 
-  // ─────────────────────────────────────────────
-// GET /api/orders/supplier
-// SQL: SELECT o.*, fi.* FROM Fulfills_Item fi JOIN Orders o WHERE fi.supplier_id = ?
-// ─────────────────────────────────────────────
-router.get('/supplier', requireLogin, requireRole('Local_Supplier'), async (req, res) => {
-    try {
-      const orders = await query(
-        `SELECT DISTINCT o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
-                r.title AS recipe_title, u.UserName AS customer_name
-         FROM Fulfills_Item fi
-         JOIN Orders o ON fi.order_id = o.order_id
-         JOIN Recipe r ON o.recipe_id = r.recipe_id
-         JOIN User u ON o.creator_id = u.user_id
-         WHERE fi.supplier_id = ?
-         ORDER BY o.order_date DESC`,
-        [req.user.id]
-      );
-      res.json(orders);
-    } catch (err) {
-      console.error('Error fetching supplier orders:', err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
-
-  // ─────────────────────────────────────────────
-// PATCH /api/orders/:id/status
-// Supplier only. Flow: Pending → Confirmed → Ready → Completed | Pending → Declined
-// 'Completed' fires trg_update_royalty_on_order automatically.
-// 'Declined' restores stock for this supplier's items.
-// SQL: UPDATE Orders SET status = ? WHERE order_id = ?
-// ─────────────────────────────────────────────
-router.patch('/:id/status', requireLogin, requireRole('Local_Supplier'), async (req, res) => {
-    const orderId = parseInt(req.params.id);
-    if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' });
-   
-    const { status } = req.body;
-    const ALLOWED = ['Confirmed', 'Ready', 'Completed', 'Declined'];
-    if (!status || !ALLOWED.includes(status)) {
-      return res.status(400).json({ error: `status must be one of: ${ALLOWED.join(', ')}` });
-    }
-   
-    try {
-      const [inv] = await query(
-        'SELECT COUNT(*) AS cnt FROM Fulfills_Item WHERE order_id = ? AND supplier_id = ?',
-        [orderId, req.user.id]
-      );
-      if (!inv || inv.cnt === 0) return res.status(403).json({ error: 'You are not a supplier for this order' });
-   
-      const [order] = await query('SELECT status FROM Orders WHERE order_id = ?', [orderId]);
-      if (!order) return res.status(404).json({ error: 'Order not found' });
-   
-      if (status === 'Declined') {
-        await withTransaction(async (conn) => {
-          await conn.execute("UPDATE Orders SET status = 'Declined' WHERE order_id = ?", [orderId]);
-          const items = await query(
-            'SELECT ingredient_id, purchased_quantity FROM Fulfills_Item WHERE order_id = ? AND supplier_id = ?',
-            [orderId, req.user.id]
-          );
-          for (const item of items) {
-            await conn.execute(
-              'UPDATE Stocks SET current_stock = current_stock + ? WHERE supplier_id = ? AND ingredient_id = ?',
-              [item.purchased_quantity, req.user.id, item.ingredient_id]
-            );
-          }
-        });
-      } else {
-        await query('UPDATE Orders SET status = ? WHERE order_id = ?', [status, orderId]);
-      }
-   
-      res.json({ order_id: orderId, status, message: 'Order status updated' });
-    } catch (err) {
-      console.error('Error updating order status:', err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
 
   // GET /api/orders/mine — list the current user's orders.
 // Defined before /:id since Express matches in registration order;
@@ -237,7 +167,7 @@ router.patch('/:id/status', requireLogin, requireRole('Local_Supplier'), async (
 router.get('/mine', requireLogin, async (req, res) => {
   try {
     const orders = await query(
-      `SELECT o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
+      `SELECT o.order_id, o.order_date, o.total_price, o.scaled_serving,
               r.recipe_id, r.title AS recipe_title,
               (SELECT COUNT(*) FROM Fulfills_Item fi WHERE fi.order_id = o.order_id) AS item_count
        FROM Orders o
@@ -263,7 +193,7 @@ router.get('/:id', requireLogin, async (req, res) => {
    
     try {
       const [order] = await query(
-        `SELECT o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
+        `SELECT o.order_id, o.order_date, o.total_price, o.scaled_serving,
                 o.creator_id, r.recipe_id, r.title AS recipe_title,
                 u.UserName AS customer_name
          FROM Orders o
