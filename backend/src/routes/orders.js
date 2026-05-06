@@ -28,7 +28,7 @@ const router = express.Router();
 // ─────────────────────────────────────────────
 router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
   const { recipe_id, scaled_serving, total_price, items } = req.body;
- 
+
   if (!recipe_id || !scaled_serving || !total_price || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({
       error: 'validation',
@@ -40,7 +40,7 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
       },
     });
   }
- 
+
   for (const item of items) {
     if (!item.ingredient_id || !item.supplier_id || !item.purchased_quantity || !item.subtotal) {
       return res.status(400).json({
@@ -48,7 +48,7 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
       });
     }
   }
- 
+
   try {
     const [recipe] = await query(
       'SELECT recipe_id, status FROM Recipe WHERE recipe_id = ?',
@@ -58,18 +58,27 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
     if (recipe.status !== 'published') {
       return res.status(400).json({ error: 'Cannot order ingredients for an unpublished recipe' });
     }
- 
+
     const orderId = await withTransaction(async (conn) => {
+
+      const [[cook]] = await conn.execute(
+        'SELECT balances FROM Home_Cook WHERE user_id = ? FOR UPDATE',
+        [req.user.id]
+      );
+      if (cook.balances < total_price) {
+        throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${total_price}`);
+      }
+
       const [orderResult] = await conn.execute(
         `INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving, status)
          VALUES (NOW(), ?, ?, ?, ?, 'Pending')`,
         [total_price, req.user.id, recipe_id, scaled_serving]
       );
       const newOrderId = orderResult.insertId;
- 
+
       for (const item of items) {
         const { ingredient_id, supplier_id, purchased_quantity, subtotal } = item;
- 
+
         const [stockRow] = await conn.execute(
           'SELECT current_stock FROM Stocks WHERE supplier_id = ? AND ingredient_id = ? FOR UPDATE',
           [supplier_id, ingredient_id]
@@ -83,28 +92,35 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
             `Available: ${stockRow.current_stock}, Requested: ${purchased_quantity}`
           );
         }
- 
+
         await conn.execute(
           `INSERT INTO Fulfills_Item (order_id, ingredient_id, supplier_id, purchased_quantity, subtotal)
            VALUES (?, ?, ?, ?, ?)`,
           [newOrderId, ingredient_id, supplier_id, purchased_quantity, subtotal]
         );
- 
+
         await conn.execute(
           'UPDATE Stocks SET current_stock = current_stock - ? WHERE supplier_id = ? AND ingredient_id = ?',
           [purchased_quantity, supplier_id, ingredient_id]
         );
       }
- 
+
+      await conn.execute(
+        'UPDATE Home_Cook SET balances = balances - ? WHERE user_id = ?',
+        [total_price, req.user.id]
+      );
+
       return newOrderId;
     });
- 
-    // +1 challenge score for qualifying purchase (non-fatal)
+
     await awardChallengeScore(req.user.id, recipe_id, 1);
- 
     res.status(201).json({ order_id: orderId, status: 'Pending', message: 'Order placed successfully' });
+
   } catch (err) {
     console.error('Error placing order:', err);
+    if (err.message.startsWith('Insufficient balance')) {
+      return res.status(402).json({ error: err.message });
+    }
     if (err.message.startsWith('Insufficient stock') || err.message.startsWith('Supplier')) {
       return res.status(409).json({ error: err.message });
     }
