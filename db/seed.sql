@@ -210,10 +210,10 @@ INSERT INTO Stocks (supplier_id, ingredient_id, price_per_unit, current_stock, u
 (7, 18, 0.30, 40, 'piece');
 
 -- Completed orders and supplier fulfillments
-INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving, status) VALUES
-('2026-04-10 12:30:00', 24.50, 1, 1, 2, 'Completed'),
-('2026-04-12 18:45:00', 18.75, 2, 2, 1.5, 'Completed'),
-('2026-04-15 20:00:00', 3.90, 3, 10, 1, 'Completed');
+INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving) VALUES
+('2026-04-10 12:30:00', 24.50, 1, 1, 2),
+('2026-04-12 18:45:00', 18.75, 2, 2, 1.5),
+('2026-04-15 20:00:00', 3.90, 3, 10, 1);
 
 INSERT INTO Fulfills_Item (order_id, ingredient_id, supplier_id, purchased_quantity, subtotal) VALUES
 (1, 2, 6, 300, 5.40),

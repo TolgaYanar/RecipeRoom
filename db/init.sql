@@ -43,7 +43,7 @@ CREATE TABLE Badge(
 
 CREATE TABLE Home_Cook(
     user_id INT PRIMARY KEY,
-    balances INT NOT NULL DEFAULT 0,
+    balances DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     target_daily_calories INT,
     primary_diet_goal VARCHAR(255),
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -312,11 +312,10 @@ CREATE TABLE Follows_User(
 CREATE TABLE Orders(
     order_id INT PRIMARY KEY AUTO_INCREMENT,
     order_date DATETIME NOT NULL,
-    total_price DOUBLE NOT NULL CHECK (total_price > 0),
+    total_price  DECIMAL(10,2) NOT NULL CHECK (total_price > 0),
     creator_id INT NOT NULL,
     recipe_id INT NOT NULL,
     scaled_serving DOUBLE NOT NULL CHECK (scaled_serving > 0),
-    status VARCHAR(255) NOT NULL,
     FOREIGN KEY (recipe_id) REFERENCES Recipe(recipe_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (creator_id) REFERENCES Home_Cook(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -376,17 +375,15 @@ JOIN Ingredient i ON s.ingredient_id = i.ingredient_id;
 
 DELIMITER //
 CREATE TRIGGER trg_update_royalty_on_order
-    AFTER UPDATE ON Orders
+    AFTER INSERT ON Orders
     FOR EACH ROW
 BEGIN
-    IF NEW.status = 'Completed' AND OLD.status <> 'Completed' THEN
-        UPDATE Verified_Chef
-        SET royalty_points = royalty_points + 1
-        WHERE user_id = (
-            SELECT publisher_chef_id FROM Recipe
-            WHERE recipe_id = NEW.recipe_id AND publisher_chef_id IS NOT NULL
-        );
-    END IF;
+    UPDATE Verified_Chef
+    SET royalty_points = royalty_points + 1
+    WHERE user_id = (
+        SELECT publisher_chef_id FROM Recipe
+        WHERE recipe_id = NEW.recipe_id AND publisher_chef_id IS NOT NULL
+    );
 END//
 
 -- D04: original_item_id != substitute_item_id (MySQL error 3823 blocks CHECK on FK cols)
