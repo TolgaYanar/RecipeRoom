@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Truck, CreditCard, Check, AlertCircle, Package,
   MapPin, Wallet, ArrowRight,
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
+import TopUpModal from '../components/TopUpModal';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import useCart from '../hooks/useCart';
 import { cartSubtotal, cartTotal, DELIVERY_FEE, clearCart } from '../lib/cart';
 import { createOrder } from '../api/orders';
+import { getUserBalance } from '../api/users';
 
 const STEPS = [
   { id: 'review',   label: 'Review Cart', icon: ShoppingCart },
@@ -19,6 +22,7 @@ const STEPS = [
 export default function Checkout() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
   const cart = useCart();
 
   const [step, setStep] = useState('review');
@@ -26,6 +30,24 @@ export default function Checkout() {
   const [notes,   setNotes]   = useState('');
   const [payment, setPayment] = useState('wallet');
   const [submitting, setSubmitting] = useState(false);
+  const [balance, setBalance] = useState(null);
+  const [topUpOpen, setTopUpOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user?.user_id) return;
+    let cancelled = false;
+    getUserBalance(user.user_id)
+      .then((d) => { if (!cancelled) setBalance(Number(d.balance) || 0); })
+      .catch(()  => { if (!cancelled) setBalance(0); });
+    return () => { cancelled = true; };
+  }, [user?.user_id]);
+
+  // if the wallet can't cover the order, fall back to card so submit works
+  useEffect(() => {
+    if (balance != null && balance < cartTotal(cart) && payment === 'wallet') {
+      setPayment('card');
+    }
+  }, [balance, cart, payment]);
 
   if (cart.recipes.length === 0) {
     return (
@@ -124,7 +146,15 @@ export default function Checkout() {
                 notes={notes}         onNotesChange={setNotes}
               />
             )}
-            {step === 'payment'  && <PaymentStep value={payment} onChange={setPayment} />}
+            {step === 'payment'  && (
+              <PaymentStep
+                value={payment}
+                onChange={setPayment}
+                balance={balance}
+                total={cartTotal(cart)}
+                onTopUp={() => setTopUpOpen(true)}
+              />
+            )}
           </div>
 
           <Sidebar
@@ -137,6 +167,15 @@ export default function Checkout() {
           />
         </div>
       </div>
+
+      {topUpOpen && (
+        <TopUpModal
+          userId={user.user_id}
+          currentBalance={balance ?? 0}
+          onClose={() => setTopUpOpen(false)}
+          onUpdated={(next) => { setBalance(next); setTopUpOpen(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -324,7 +363,15 @@ function DeliveryStep({ address, onAddressChange, notes, onNotesChange }) {
   );
 }
 
-function PaymentStep({ value, onChange }) {
+function PaymentStep({ value, onChange, balance, total, onTopUp }) {
+  const enough = balance != null && balance >= total;
+  const balanceLabel = balance == null ? '—' : `$${Number(balance).toFixed(2)}`;
+  const subtitle = balance == null
+    ? 'Loading wallet…'
+    : enough
+      ? 'You have sufficient balance for this order'
+      : `Insufficient balance — order total is $${total.toFixed(2)}`;
+
   return (
     <div className="bg-white rounded-2xl border border-[#EBEBEB] p-6">
       <h2 className="text-[16px] font-bold text-[#1A1A1A] mb-5 flex items-center gap-2">
@@ -333,19 +380,33 @@ function PaymentStep({ value, onChange }) {
       </h2>
 
       <div className="space-y-3">
-        <PaymentOption
-          id="wallet"
-          checked={value === 'wallet'}
-          onSelect={() => onChange('wallet')}
-          icon={<Wallet className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
-          title="Recipe Room Wallet"
-          subtitle="You have sufficient balance for this order"
-          right={
-            <span className="px-2.5 py-1 bg-[#1B3A2D] text-white text-[12px] font-bold rounded-md">
-              $150.00
-            </span>
-          }
-        />
+        <div className="flex items-stretch gap-2">
+          <div className="flex-1">
+            <PaymentOption
+              id="wallet"
+              checked={value === 'wallet'}
+              onSelect={() => enough && onChange('wallet')}
+              disabled={!enough}
+              icon={<Wallet className={`w-5 h-5 ${enough ? 'text-[#1B3A2D]' : 'text-[#9E9E9E]'}`} strokeWidth={1.5} />}
+              title="Recipe Room Wallet"
+              subtitle={subtitle}
+              right={
+                <span className={`px-2.5 py-1 text-[12px] font-bold rounded-md ${enough ? 'bg-[#1B3A2D] text-white' : 'bg-[#F5F5F5] text-[#6B6B6B]'}`}>
+                  {balanceLabel}
+                </span>
+              }
+            />
+          </div>
+          {balance != null && !enough && (
+            <button
+              type="button"
+              onClick={onTopUp}
+              className="shrink-0 px-4 bg-[#1B3A2D] text-white rounded-xl text-[13px] font-semibold hover:bg-[#142B22]"
+            >
+              Add Balance
+            </button>
+          )}
+        </div>
         <PaymentOption
           id="card"
           checked={value === 'card'}
@@ -359,16 +420,19 @@ function PaymentStep({ value, onChange }) {
   );
 }
 
-function PaymentOption({ checked, onSelect, icon, title, subtitle, right }) {
+function PaymentOption({ checked, onSelect, icon, title, subtitle, right, disabled }) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       className={
         'w-full flex items-center gap-3 p-4 rounded-xl border text-left transition-colors ' +
-        (checked
-          ? 'border-[#1B3A2D] bg-[#F5F8F6]'
-          : 'border-[#EBEBEB] hover:border-[#D0D0D0]')
+        (disabled
+          ? 'border-[#EBEBEB] bg-[#FAFAFA] opacity-60 cursor-not-allowed'
+          : checked
+            ? 'border-[#1B3A2D] bg-[#F5F8F6]'
+            : 'border-[#EBEBEB] hover:border-[#D0D0D0]')
       }
     >
       <span

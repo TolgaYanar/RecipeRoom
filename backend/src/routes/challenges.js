@@ -38,6 +38,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/challenges/mine — challenge_ids the current user has joined.
+// Defined before /:id since Express matches in registration order.
+router.get('/mine', requireLogin, async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT challenge_id, progress_status, score FROM Participates_in WHERE user_id = ?',
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /challenges/mine error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─────────────────────────────────────────────
 // GET /api/challenges/:id
 // Challenge detail + leaderboard ranked by score.
@@ -351,6 +366,23 @@ router.patch('/:id', requireLogin, requireRole('Administrator'), async (req, res
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-   
+
+// DELETE /api/challenges/:id/leave — removes the user's Participates_in row.
+// Two-segment path so it doesn't collide with GET /:id.
+router.delete('/:id/leave', requireLogin, async (req, res) => {
+  const challengeId = parseInt(req.params.id);
+  if (isNaN(challengeId)) return res.status(400).json({ error: 'Invalid challenge ID' });
+  try {
+    await query(
+      'DELETE FROM Participates_in WHERE user_id = ? AND challenge_id = ?',
+      [req.user.id, challengeId]
+    );
+    res.json({ message: 'Left challenge' });
+  } catch (err) {
+    console.error('DELETE /challenges/:id/leave error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
   module.exports = router;
 

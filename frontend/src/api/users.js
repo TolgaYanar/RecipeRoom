@@ -41,3 +41,9 @@ export const toggleFollow = (id) =>
 
 export const getSavedRecipes = (id) =>
   client.get(`/users/${id}/saved`).then(r => r.data);
+
+export const getUserBalance = (id) =>
+  client.get(`/users/${id}/balance`).then(r => r.data);
+
+export const topUpBalance = (id, amount) =>
+  client.post(`/users/${id}/balance/topup`, { amount }).then(r => r.data);

@@ -8,7 +8,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import { getHomeHighlights } from '../api/highlights';
 import { getRecipes } from '../api/recipes';
-import { getChallenges } from '../api/challenges';
+import { getChallenges, getMyChallenges } from '../api/challenges';
+import { useAuth } from '../context/AuthContext';
 
 const QUICK_FILTERS = [
   { label: 'All',          to: '/recipes' },
@@ -28,13 +29,30 @@ const TABS = [
 ];
 
 export default function Home() {
+  const { user } = useAuth();
   const [highlights, setHighlights] = useState(null);
   const [challenges, setChallenges] = useState(null);
 
   useEffect(() => {
     getHomeHighlights().then(setHighlights).catch(() => setHighlights({}));
-    getChallenges().then(setChallenges).catch(() => setChallenges([]));
-  }, []);
+    let cancelled = false;
+    Promise.all([
+      getChallenges().catch(() => []),
+      user ? getMyChallenges().catch(() => []) : Promise.resolve([]),
+    ]).then(([list, mine]) => {
+      if (cancelled) return;
+      const myMap = new Map((mine ?? []).map((m) => [m.challenge_id, m]));
+      setChallenges((list ?? []).map((c) => {
+        const me = myMap.get(c.id);
+        return {
+          ...c,
+          user_joined: !!me,
+          user_won:    me?.progress_status === 'Winner',
+        };
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   return (
     <div className="bg-white">
@@ -315,7 +333,7 @@ function ChallengeCard({ challenge: c }) {
         </>
       )}
 
-      {c.completed && (
+      {c.user_won && (
         <div className="text-[14px] font-semibold text-[#1A1A1A] mb-3">
           🏆 Challenge Complete! Badge Earned! 🎉
         </div>

@@ -5,18 +5,41 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
-import { getChallenges, getChallenge, submitChallengeEntry } from '../api/challenges';
+import {
+  getChallenges, getChallenge, submitChallengeEntry,
+  getMyChallenges, joinChallenge, leaveChallenge,
+} from '../api/challenges';
 import { getMyRecipes } from '../api/recipes';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Challenges() {
+  const { user } = useAuth();
+  const toast = useToast();
   const [challenges, setChallenges] = useState(null);
   const [statusTab, setStatusTab]   = useState('active');
   const [leaderboardFor, setLeaderboardFor] = useState(null); // challenge id
   const [logOpen, setLogOpen] = useState(false);
 
   useEffect(() => {
-    getChallenges().then(setChallenges).catch(() => setChallenges([]));
-  }, []);
+    let cancelled = false;
+    Promise.all([
+      getChallenges().catch(() => []),
+      user ? getMyChallenges().catch(() => []) : Promise.resolve([]),
+    ]).then(([list, mine]) => {
+      if (cancelled) return;
+      const myMap = new Map((mine ?? []).map((m) => [m.challenge_id, m]));
+      setChallenges((list ?? []).map((c) => {
+        const me = myMap.get(c.id);
+        return {
+          ...c,
+          user_joined: !!me,
+          user_won:    me?.progress_status === 'Winner',
+        };
+      }));
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const list = Array.isArray(challenges) ? challenges : (challenges?.items ?? []);
   const activeList    = list.filter((c) => !c.completed);
@@ -25,20 +48,40 @@ export default function Challenges() {
 
   const joinedActive = activeList.filter((c) => c.user_joined);
 
-  // optimistic join/leave — there's no dedicated join endpoint yet, so we
-  // update local state and let a real implementation replace this later
-  const togglJoined = (id, joined) => {
-    setChallenges((prev) => {
-      const items = Array.isArray(prev) ? prev : (prev?.items ?? []);
-      const next = items.map((c) =>
-        c.id === id ? { ...c, user_joined: joined, joined: (c.joined || 0) + (joined ? 1 : -1) } : c
-      );
-      return Array.isArray(prev) ? next : { ...prev, items: next };
-    });
+  // flip locally before the API confirms so the UI feels snappy; revert if it errors
+  const flipJoined = (id, joined) => {
+    setChallenges((prev) => (prev ?? []).map((c) =>
+      c.id === id ? { ...c, user_joined: joined, joined: (c.joined || 0) + (joined ? 1 : -1) } : c
+    ));
+  };
+
+  const handleJoin = async (id) => {
+    flipJoined(id, true);
+    try { await joinChallenge(id); toast.success('Joined challenge'); }
+    catch { flipJoined(id, false); /* interceptor toasts */ }
+  };
+
+  const handleLeave = async (id) => {
+    flipJoined(id, false);
+    try { await leaveChallenge(id); toast.success('Left challenge'); }
+    catch { flipJoined(id, true); /* interceptor toasts */ }
   };
 
   const reloadChallenges = () => {
-    getChallenges().then(setChallenges).catch(() => {});
+    Promise.all([
+      getChallenges().catch(() => []),
+      user ? getMyChallenges().catch(() => []) : Promise.resolve([]),
+    ]).then(([list, mine]) => {
+      const myMap = new Map((mine ?? []).map((m) => [m.challenge_id, m]));
+      setChallenges((list ?? []).map((c) => {
+        const me = myMap.get(c.id);
+        return {
+          ...c,
+          user_joined: !!me,
+          user_won:    me?.progress_status === 'Winner',
+        };
+      }));
+    });
   };
 
   return (
@@ -76,8 +119,8 @@ export default function Challenges() {
               <ChallengeCard
                 key={c.id}
                 challenge={c}
-                onJoin={() => togglJoined(c.id, true)}
-                onLeave={() => togglJoined(c.id, false)}
+                onJoin={() => handleJoin(c.id)}
+                onLeave={() => handleLeave(c.id)}
                 onLeaderboard={() => setLeaderboardFor(c.id)}
               />
             ))}
@@ -88,6 +131,7 @@ export default function Challenges() {
       {leaderboardFor != null && (
         <LeaderboardModal
           challengeId={leaderboardFor}
+          currentUserId={user?.user_id}
           onClose={() => setLeaderboardFor(null)}
         />
       )}
@@ -381,7 +425,7 @@ function ChallengeCard({ challenge: c, onJoin, onLeave, onLeaderboard }) {
   );
 }
 
-function LeaderboardModal({ challengeId, onClose }) {
+function LeaderboardModal({ challengeId, onClose, currentUserId }) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -393,6 +437,9 @@ function LeaderboardModal({ challengeId, onClose }) {
   }, [challengeId]);
 
   const participants = data?.leaderboard ?? data?.participants ?? [];
+  // sort by points desc so the bar widths and ranks read top-down
+  const sorted = [...participants].sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+  const topPoints = sorted[0]?.points ?? 0;
 
   return (
     <ModalShell title="Challenge Leaderboard" onClose={onClose} maxW="max-w-[560px]">
@@ -412,12 +459,18 @@ function LeaderboardModal({ challengeId, onClose }) {
             </div>
           </div>
 
-          {participants.length === 0 ? (
+          {sorted.length === 0 ? (
             <EmptyState message="No entries yet." icon="📋" />
           ) : (
             <ul className="space-y-3">
-              {participants.map((p, i) => (
-                <LeaderboardRow key={p.user_id ?? p.name ?? i} participant={p} rank={p.rank ?? i + 1} />
+              {sorted.map((p, i) => (
+                <LeaderboardRow
+                  key={p.user_id ?? p.name ?? i}
+                  participant={p}
+                  rank={i + 1}
+                  topPoints={topPoints}
+                  isSelf={currentUserId != null && p.user_id === currentUserId}
+                />
               ))}
             </ul>
           )}
@@ -427,10 +480,9 @@ function LeaderboardModal({ challengeId, onClose }) {
   );
 }
 
-function LeaderboardRow({ participant: p, rank }) {
-  const total = p.recipes?.total ?? 1;
-  const done  = p.recipes?.done  ?? 0;
-  const pct   = Math.min(100, Math.round((done / Math.max(1, total)) * 100));
+function LeaderboardRow({ participant: p, rank, topPoints, isSelf }) {
+  // bar width is relative to the leader's score so #1 is always full
+  const pct = topPoints > 0 ? Math.min(100, Math.round((p.points / topPoints) * 100)) : 0;
 
   return (
     <li className="flex items-center gap-3">
@@ -443,15 +495,15 @@ function LeaderboardRow({ participant: p, rank }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[14px] font-semibold text-[#1A1A1A] truncate">{p.name}</span>
-          {p.is_self && <span className="text-[12px] text-[#6B6B6B]">(You)</span>}
+          {isSelf && <span className="text-[12px] text-[#6B6B6B]">(You)</span>}
           {p.completed && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-[#1B3A2D] px-2 py-0.5 rounded-full">
-              <Medal className="w-3 h-3" strokeWidth={1.5} /> Completed
+              <Medal className="w-3 h-3" strokeWidth={1.5} /> Winner
             </span>
           )}
         </div>
         <div className="text-[12px] text-[#6B6B6B]">
-          {done}/{total} recipes · {p.points ?? 0} points{p.completed_at ? ` · ${p.completed_at}` : ''}
+          {p.points} point{p.points === 1 ? '' : 's'}
         </div>
       </div>
       <div className="w-24 h-1.5 rounded-full bg-[#EBEBEB] overflow-hidden shrink-0">

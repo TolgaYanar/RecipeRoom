@@ -79,7 +79,7 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
       for (const item of items) {
         const { ingredient_id, supplier_id, purchased_quantity, subtotal } = item;
 
-        const [stockRow] = await conn.execute(
+        const [[stockRow]] = await conn.execute(
           'SELECT current_stock FROM Stocks WHERE supplier_id = ? AND ingredient_id = ? FOR UPDATE',
           [supplier_id, ingredient_id]
         );

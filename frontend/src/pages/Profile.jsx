@@ -8,8 +8,9 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import {
   getUser, updateUser, getUserRecipes, getUserRoyalties,
   getMealLists, createMealList, deleteMealList,
-  getSavedRecipes, getFollowState,
+  getSavedRecipes, getFollowState, getUserBalance,
 } from '../api/users';
+import TopUpModal from '../components/TopUpModal';
 import { getMyOrders } from '../api/orders';
 import { getCookLog } from '../api/cookLog';
 import {
@@ -38,7 +39,9 @@ export default function Profile() {
   const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(null);
   const [follows, setFollows] = useState({ followers: 0, following: 0 });
+  const [balance, setBalance] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
   // bump to force a refetch (e.g. after Edit Profile saves)
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -54,8 +57,13 @@ export default function Profile() {
         following: d.following_count ?? 0,
       }); })
       .catch(() => {});
+    if (user.user_type === 'Home_Cook') {
+      getUserBalance(user.user_id)
+        .then((d) => { if (!cancelled) setBalance(Number(d.balance) || 0); })
+        .catch(() => {});
+    }
     return () => { cancelled = true; };
-  }, [user?.user_id, reloadKey]);
+  }, [user?.user_id, user?.user_type, reloadKey]);
 
   const reloadProfile = () => setReloadKey((k) => k + 1);
   const profileLoading = profile === null;
@@ -97,6 +105,8 @@ export default function Profile() {
           recipes={profile?.recipes_count ?? 0}
           followers={follows.followers}
           following={follows.following}
+          balance={balance}
+          onTopUp={() => setTopUpOpen(true)}
           onEdit={() => setEditing(true)}
         />
 
@@ -125,6 +135,15 @@ export default function Profile() {
           onSaved={() => { setEditing(false); reloadProfile(); }}
         />
       )}
+
+      {topUpOpen && (
+        <TopUpModal
+          userId={user.user_id}
+          currentBalance={balance ?? 0}
+          onClose={() => setTopUpOpen(false)}
+          onUpdated={(next) => { setBalance(next); setTopUpOpen(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -133,7 +152,7 @@ function deriveHandle(name) {
   return (name || '').toLowerCase().replace(/\s+/g, '_');
 }
 
-function ProfileHeader({ name, handle, location, bio, recipes, followers, following, onEdit }) {
+function ProfileHeader({ name, handle, location, bio, recipes, followers, following, balance, onTopUp, onEdit }) {
   return (
     <div className="bg-white border border-[#EBEBEB] rounded-2xl p-6 flex items-start gap-6">
       <img
@@ -166,10 +185,27 @@ function ProfileHeader({ name, handle, location, bio, recipes, followers, follow
 
         {bio && <p className="text-[14px] text-[#1A1A1A] mb-4">{bio}</p>}
 
-        <div className="flex items-start gap-8">
-          <Stat number={recipes}   label="Recipes"   />
-          <Stat number={followers} label="Followers" />
-          <Stat number={following} label="Following" />
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div className="flex items-start gap-8">
+            <Stat number={recipes}   label="Recipes"   />
+            <Stat number={followers} label="Followers" />
+            <Stat number={following} label="Following" />
+          </div>
+          {balance != null && (
+            <div className="flex items-center gap-3 bg-[#F5F8F6] border border-[#D0D0D0] rounded-lg px-3 py-2">
+              <div>
+                <div className="text-[11px] text-[#6B6B6B]">Wallet</div>
+                <div className="text-[16px] font-bold text-[#1A1A1A]">${Number(balance).toFixed(2)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={onTopUp}
+                className="px-3 py-1.5 bg-[#1B3A2D] text-white rounded-md text-[12px] font-semibold hover:bg-[#142B22]"
+              >
+                Add Balance
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

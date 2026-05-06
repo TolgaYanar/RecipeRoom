@@ -18,6 +18,16 @@ export const setChallengeWinner = (id, data) =>
 export const updateChallenge = (id, data) =>
   client.patch(`/challenges/${id}`, data).then(r => r.data);
 
+export const getMyChallenges = () =>
+  client.get('/challenges/mine').then(r => r.data);
+
+// Backend's /:id/entries upserts into Participates_in, so it doubles as join.
+export const joinChallenge = (id) =>
+  client.post(`/challenges/${id}/entries`, {}).then(r => r.data);
+
+export const leaveChallenge = (id) =>
+  client.delete(`/challenges/${id}/leave`).then(r => r.data);
+
 // Backend returns flat columns (challenge_id, title, badge_name, etc.).
 // Pages were built around a richer object shape — flatten the gap here so
 // callers don't each have to rename the same fields.
@@ -47,7 +57,17 @@ function normalize(c) {
       earned:      !!c.badge_earned,
       earned_at:   c.badge_earned_at ?? null,
     } : null,
-    leaderboard: c.leaderboard ?? c.participants ?? [],
+    leaderboard: (c.leaderboard ?? c.participants ?? []).map(normalizeParticipant),
+  };
+}
+
+function normalizeParticipant(p, i) {
+  return {
+    user_id:   p.user_id,
+    name:      p.username ?? p.name ?? 'User',
+    points:    Number(p.score ?? p.points ?? 0),
+    completed: (p.progress_status ?? '').toLowerCase() === 'winner',
+    rank:      p.rank ?? i + 1,
   };
 }
 

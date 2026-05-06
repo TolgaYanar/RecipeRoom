@@ -407,4 +407,61 @@ router.get('/:id/saved', requireLogin, async (req, res) => {
   }
 });
 
+// GET /users/:id/balance — current Home_Cook wallet. Self-only.
+// Checkout uses this to surface the real wallet number instead of a placeholder.
+router.get('/:id/balance', requireLogin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user ID' });
+  if (userId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const [row] = await query(
+      'SELECT balances FROM Home_Cook WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ balance: row ? Number(row.balances) : 0 });
+  } catch (err) {
+    console.error('GET /users/:id/balance error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /users/:id/balance/topup — bumps the wallet by { amount }. Self-only.
+// No payment processor in scope, so this just credits the row.
+router.post('/:id/balance/topup', requireLogin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid user ID' });
+  if (userId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+  const amount = Number(req.body?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'amount must be a positive number' });
+  }
+  // Home_Cook.balances is INT in the schema, so fractional cents would silently
+  // round and surprise the user — require whole-dollar amounts up front
+  if (!Number.isInteger(amount)) {
+    return res.status(400).json({ error: 'amount must be a whole number (no cents)' });
+  }
+  if (amount > 10000) {
+    return res.status(400).json({ error: 'amount exceeds the per-topup cap (10000)' });
+  }
+
+  try {
+    const result = await query(
+      'UPDATE Home_Cook SET balances = balances + ? WHERE user_id = ?',
+      [amount, userId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Home cook profile not found' });
+    }
+    const [row] = await query(
+      'SELECT balances FROM Home_Cook WHERE user_id = ?',
+      [userId]
+    );
+    res.json({ balance: Number(row.balances) });
+  } catch (err) {
+    console.error('POST /users/:id/balance/topup error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
