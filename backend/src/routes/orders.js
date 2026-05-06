@@ -140,15 +140,16 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
 router.get('/supplier', requireLogin, requireRole('Local_Supplier'), async (req, res) => {
     try {
       const orders = await query(
-        `SELECT o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
+        `SELECT o.order_id, o.order_date, o.scaled_serving,
                 r.title AS recipe_title, u.UserName AS customer_name,
-                COUNT(fi.ingredient_id) AS item_count
+                COUNT(fi.ingredient_id) AS item_count,
+                SUM (fi.subtotal) AS supplier_total
          FROM Fulfills_Item fi
          JOIN Orders o ON fi.order_id = o.order_id
          JOIN Recipe r ON o.recipe_id = r.recipe_id
          JOIN User u ON o.creator_id = u.user_id
          WHERE fi.supplier_id = ?
-         GROUP BY o.order_id, o.order_date, o.total_price, o.status, o.scaled_serving,
+         GROUP BY o.order_id, o.order_date, o.scaled_serving,
                   r.title, u.UserName
          ORDER BY o.order_date DESC`,
         [req.user.id]
