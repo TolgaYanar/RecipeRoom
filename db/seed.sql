@@ -90,30 +90,30 @@ INSERT INTO Meal_List (list_name, user_id) VALUES
 ('Comfort Classics', 3);
 
 -- Recipes
-INSERT INTO Recipe (title, description, cooking_time, difficulty, base_servings, publisher_chef_id, publisher_home_cook_id) VALUES
-('Spaghetti Pomodoro', 'Fresh tomato sauce with basil and olive oil over spaghetti.', 25, 'Easy', 2, 4, NULL),
-('Quinoa Power Bowl', 'A protein-rich quinoa bowl with spinach, chickpeas, and avocado.', 30, 'Medium', 2, 5, NULL),
-('Tomato Basil Soup', 'Creamy tomato soup with fresh basil and garlic.', 40, 'Easy', 4, 4, NULL),
-('Vegan Banana Oat Pancakes', 'Fluffy vegan pancakes made with banana and oat milk.', 20, 'Easy', 2, 5, NULL),
-('Sea Garlic Shrimp', 'Sautéed shrimp with garlic, olive oil, and lemon.', 18, 'Easy', 2, NULL, 3),
-('Apple Crumble', 'Warm apple crumble with cinnamon and oat topping.', 50, 'Medium', 6, NULL, 1),
-('Bruschetta Trio', 'Toasted bread topped with tomatoes, basil, and olive oil.', 15, 'Easy', 4, NULL, 2),
-('Chickpea Curry', 'Hearty chickpea curry with warming spices and spinach.', 35, 'Medium', 4, 4, NULL),
-('Classic Chicken Salad', 'Grilled chicken breast salad with greens and a light dressing.', 25, 'Easy', 2, NULL, 2),
-('Strawberry Yogurt Smoothie', 'Creamy smoothie made with yogurt, banana, and berries.', 10, 'Easy', 1, 5, NULL);
+INSERT INTO Recipe (title, description, cooking_time, difficulty, base_servings, publisher_chef_id, publisher_home_cook_id, status) VALUES
+('Spaghetti Pomodoro', 'Fresh tomato sauce with basil and olive oil over spaghetti.', 25, 'Easy', 2, 4, NULL, 'published'),
+('Quinoa Power Bowl', 'A protein-rich quinoa bowl with spinach, chickpeas, and avocado.', 30, 'Medium', 2, 5, NULL, 'published'),
+('Tomato Basil Soup', 'Creamy tomato soup with fresh basil and garlic.', 40, 'Easy', 4, 4, NULL, 'published'),
+('Vegan Banana Oat Pancakes', 'Fluffy vegan pancakes made with banana and oat milk.', 20, 'Easy', 2, 5, NULL, 'published'),
+('Sea Garlic Shrimp', 'Sautéed shrimp with garlic, olive oil, and lemon.', 18, 'Easy', 2, NULL, 3, 'published'),
+('Apple Crumble', 'Warm apple crumble with cinnamon and oat topping.', 50, 'Medium', 6, NULL, 1, 'published'),
+('Bruschetta Trio', 'Toasted bread topped with tomatoes, basil, and olive oil.', 15, 'Easy', 4, NULL, 2, 'published'),
+('Chickpea Curry', 'Hearty chickpea curry with warming spices and spinach.', 35, 'Medium', 4, 4, NULL, 'published'),
+('Classic Chicken Salad', 'Grilled chicken breast salad with greens and a light dressing.', 25, 'Easy', 2, NULL, 2, 'published'),
+('Strawberry Yogurt Smoothie', 'Creamy smoothie made with yogurt, banana, and berries.', 10, 'Easy', 1, 5, NULL, 'published');
 
 -- Recipe media
 INSERT INTO Recipe_Media (media_url, media_type, is_thumbnail, recipe_id) VALUES
-('https://example.com/images/spaghetti.jpg', 'image', TRUE, 1),
-('https://example.com/images/quinoa-bowl.jpg', 'image', TRUE, 2),
-('https://example.com/images/tomato-soup.jpg', 'image', TRUE, 3),
-('https://example.com/images/banana-pancakes.jpg', 'image', TRUE, 4),
-('https://example.com/images/shrimp.jpg', 'image', TRUE, 5),
-('https://example.com/images/apple-crumble.jpg', 'image', TRUE, 6),
-('https://example.com/images/bruschetta.jpg', 'image', TRUE, 7),
-('https://example.com/images/chickpea-curry.jpg', 'image', TRUE, 8),
-('https://example.com/images/chicken-salad.jpg', 'image', TRUE, 9),
-('https://example.com/images/smoothie.jpg', 'image', TRUE, 10);
+('https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&h=450&fit=crop', 'image', TRUE, 1),
+('https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=450&fit=crop', 'image', TRUE, 2),
+('https://images.unsplash.com/photo-1547592180-85f173990554?w=600&h=450&fit=crop', 'image', TRUE, 3),
+('https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=600&h=450&fit=crop', 'image', TRUE, 4),
+('https://images.unsplash.com/photo-1565680018093-ebb6b9ab5460?w=600&h=450&fit=crop', 'image', TRUE, 5),
+('https://images.unsplash.com/photo-1568571780765-9276f540e5f6?w=600&h=450&fit=crop', 'image', TRUE, 6),
+('https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=600&h=450&fit=crop', 'image', TRUE, 7),
+('https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&h=450&fit=crop', 'image', TRUE, 8),
+('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=450&fit=crop', 'image', TRUE, 9),
+('https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=600&h=450&fit=crop', 'image', TRUE, 10);
 
 -- Recipe tags
 INSERT INTO Has_Tag (recipe_id, tag_id) VALUES

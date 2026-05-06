@@ -26,6 +26,7 @@ export default function RecipeCard({ recipe }) {
 
   const { user, openAuth } = useAuth();
   const [saved, setSaved] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const diffKey = difficulty?.toLowerCase();
 
   useEffect(() => {
@@ -57,12 +58,12 @@ export default function RecipeCard({ recipe }) {
     >
       {/* Image — 4:3 ratio */}
       <div className="relative aspect-[4/3] overflow-hidden bg-[#FAF8F5]">
-        {thumbnail_url ? (
+        {thumbnail_url && !imgError ? (
           <img
             src={thumbnail_url}
             alt={title}
             className="w-full h-full object-cover"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[#9E9E9E]">
