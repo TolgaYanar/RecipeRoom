@@ -72,9 +72,29 @@ export function cartSubtotal(cart = getCart()) {
   return cart.recipes.reduce((sum, r) => sum + recipeSubtotal(r), 0);
 }
 
-export const DELIVERY_FEE = 4.99;
+export const DELIVERY_FEE_PER_SUPPLIER = 2.49;
+export const MIN_SUPPLIER_SUBTOTAL = 5;
+
+// Distinct suppliers across the whole cart — delivery is charged per
+// supplier-trip, so 3 suppliers means 3 fee units.
+export function cartSupplierCount(cart = getCart()) {
+  const ids = new Set();
+  for (const r of cart.recipes) {
+    const ratio = (r.servings || 1) / (r.base_servings || r.servings || 1);
+    for (const ing of (r.ingredients || [])) {
+      const id = ing.supplier?.id;
+      const lineSub = (Number(ing.price) || 0) * ratio;
+      if (id != null && lineSub > 0) ids.add(id);
+    }
+  }
+  return ids.size;
+}
+
+export function cartDeliveryFee(cart = getCart()) {
+  return cartSupplierCount(cart) * DELIVERY_FEE_PER_SUPPLIER;
+}
 
 export function cartTotal(cart = getCart()) {
   const sub = cartSubtotal(cart);
-  return sub > 0 ? sub + DELIVERY_FEE : 0;
+  return sub > 0 ? sub + cartDeliveryFee(cart) : 0;
 }

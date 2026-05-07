@@ -61,6 +61,7 @@ CREATE TABLE Local_Supplier(
     business_name VARCHAR(255) NOT NULL UNIQUE,
     address VARCHAR(255) NOT NULL UNIQUE,
     contact_number VARCHAR(255) NOT NULL UNIQUE,
+    balance DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -177,6 +178,17 @@ CREATE TABLE Recipe(
     FOREIGN KEY (parent_recipe_id) REFERENCES Recipe(recipe_id) ON DELETE SET NULL ON UPDATE CASCADE,
     FOREIGN KEY (publisher_chef_id) REFERENCES Verified_Chef(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (publisher_home_cook_id) REFERENCES Home_Cook(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Recipe_Views(
+    recipe_id INT NOT NULL,
+    user_id INT NOT NULL,
+    first_viewed_at DATETIME NOT NULL,
+    last_viewed_at DATETIME NOT NULL,
+    view_count INT NOT NULL DEFAULT 1,
+    PRIMARY KEY (recipe_id, user_id),
+    FOREIGN KEY (recipe_id) REFERENCES Recipe(recipe_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE Recipe_Media(
@@ -316,6 +328,8 @@ CREATE TABLE Orders(
     creator_id INT NOT NULL,
     recipe_id INT NOT NULL,
     scaled_serving DOUBLE NOT NULL CHECK (scaled_serving > 0),
+    delivery_address VARCHAR(255) NOT NULL DEFAULT '',
+    delivery_notes VARCHAR(500) DEFAULT NULL,
     FOREIGN KEY (recipe_id) REFERENCES Recipe(recipe_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (creator_id) REFERENCES Home_Cook(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -362,7 +376,14 @@ SELECT ls.user_id AS supplier_id, ls.business_name,
        s.current_stock, s.price_per_unit, s.unit,
        CASE
            WHEN s.current_stock = 0 THEN 'Out of Stock'
-           WHEN s.current_stock < 30 THEN 'Low Stock'
+           WHEN (LOWER(s.unit) = 'g'  AND s.current_stock < 100)
+             OR (LOWER(s.unit) = 'kg' AND s.current_stock < 0.1)
+             OR (LOWER(s.unit) = 'mg' AND s.current_stock < 100000)
+             OR (LOWER(s.unit) = 'ml' AND s.current_stock < 100)
+             OR (LOWER(s.unit) = 'l'  AND s.current_stock < 0.1)
+             OR (LOWER(s.unit) IN ('piece','pieces','pcs','unit','units') AND s.current_stock < 5)
+             OR (s.unit IS NULL AND s.current_stock < 30)
+               THEN 'Low Stock'
            ELSE 'In Stock'
        END AS stock_status
 FROM Stocks s

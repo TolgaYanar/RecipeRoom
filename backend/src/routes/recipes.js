@@ -1,6 +1,6 @@
 const express = require('express');
 const { query, withTransaction } = require('../utils/db');
-const { requireLogin, requireRole } = require('../middleware/auth');
+const { requireLogin, optionalAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 // GET /api/recipes
@@ -115,7 +115,7 @@ router.get('/my', requireLogin, async (req, res) => {
 });
 
 // GET /api/recipes/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const recipeId = parseInt(req.params.id);
     if (isNaN(recipeId)) return res.status(400).json({ error: 'Invalid recipe ID' });
@@ -133,6 +133,24 @@ router.get('/:id', async (req, res) => {
       'SELECT parent_recipe_id, publisher_home_cook_id, publisher_chef_id FROM Recipe WHERE recipe_id = ?',
       [recipeId]
     );
+
+    // Record a unique-viewer entry. Anonymous viewers are skipped (no
+    // user_id), and the publisher's own visits don't inflate their stats.
+    // Fire-and-forget — a failed insert shouldn't break the page.
+    if (req.user?.id && recipeRow) {
+      const viewerId = req.user.id;
+      const isPublisher =
+        viewerId === recipeRow.publisher_chef_id ||
+        viewerId === recipeRow.publisher_home_cook_id;
+      if (!isPublisher) {
+        query(
+          `INSERT INTO Recipe_Views (recipe_id, user_id, first_viewed_at, last_viewed_at, view_count)
+           VALUES (?, ?, NOW(), NOW(), 1)
+           ON DUPLICATE KEY UPDATE last_viewed_at = NOW(), view_count = view_count + 1`,
+          [recipeId, viewerId]
+        ).catch((e) => console.warn('Recipe_Views upsert failed:', e.message));
+      }
+    }
     if (recipeRow?.parent_recipe_id) {
       const [parent] = await query(
         'SELECT recipe_id, title FROM Recipe WHERE recipe_id = ?',

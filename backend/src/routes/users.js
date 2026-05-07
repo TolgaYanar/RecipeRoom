@@ -102,20 +102,30 @@ router.get('/:id/royalties', requireLogin, requireRole('Verified_Chef'), async (
       return res.status(404).json({ error: 'Chef not found' });
     }
 
-    // Per-recipe breakdown: completed orders for this chef's recipes
-    const perRecipe = await query(
-      `SELECT r.recipe_id, r.title, COUNT(o.order_id) AS completed_orders
+    // Per-recipe performance: orders + average rating + unique viewers.
+    const performance = await query(
+      `SELECT r.recipe_id, r.title,
+              COUNT(DISTINCT o.order_id) AS orders,
+              ROUND(AVG(rr.score), 1) AS avg_rating,
+              COUNT(DISTINCT rv.user_id) AS views
        FROM Recipe r
-       LEFT JOIN Orders o ON r.recipe_id = o.recipe_id AND o.status = 'Completed'
+       LEFT JOIN Orders o ON r.recipe_id = o.recipe_id
+       LEFT JOIN Rates_Review rr ON r.recipe_id = rr.recipe_id
+       LEFT JOIN Recipe_Views rv ON r.recipe_id = rv.recipe_id
        WHERE r.publisher_chef_id = ?
        GROUP BY r.recipe_id, r.title
-       ORDER BY completed_orders DESC`,
+       ORDER BY orders DESC, views DESC, r.recipe_id`,
       [userId]
     );
 
+    const ordersLinked = performance.reduce((s, r) => s + Number(r.orders || 0), 0);
+    const topRecipe    = performance.find((r) => Number(r.orders || 0) > 0)?.title ?? '—';
+
     res.json({
       total_points: chef.royalty_points,
-      per_recipe: perRecipe,
+      orders_linked: ordersLinked,
+      top_recipe: topRecipe,
+      performance,
     });
   } catch (err) {
     console.error('Error fetching user royalties:', err);

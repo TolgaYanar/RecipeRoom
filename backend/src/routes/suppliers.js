@@ -155,7 +155,7 @@ router.get('/:id/inventory', requireLogin, async (req, res) => {
    
     try {
       const [supplier] = await query(
-        'SELECT user_id, business_name, address, contact_number FROM Local_Supplier WHERE user_id = ?',
+        'SELECT user_id, business_name, address, contact_number, balance FROM Local_Supplier WHERE user_id = ?',
         [supplierId]
       );
       if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
@@ -169,14 +169,19 @@ router.get('/:id/inventory', requireLogin, async (req, res) => {
         [supplierId]
       );
    
-      // Dashboard KPI aggregate (matches design report §3.4.5 supplier dashboard query)
+      // Dashboard KPI aggregate — counts derived from the view's
+      // unit-aware stock_status so kg vs g comparisons stay honest.
+      // COLLATE keeps the comparison consistent — the view's CASE result
+      // inherits utf8mb4_unicode_ci from Stocks.unit, while string literals
+      // come in as the connection default (utf8mb4_0900_ai_ci).
       const [kpis] = await query(
         `SELECT
            COUNT(*) AS total_products,
-           SUM(current_stock > 0) AS in_stock_count,
+           SUM(stock_status COLLATE utf8mb4_unicode_ci = 'In Stock' OR
+               stock_status COLLATE utf8mb4_unicode_ci = 'Low Stock') AS in_stock_count,
            SUM(current_stock * price_per_unit) AS inventory_value,
-           SUM(current_stock < 30 AND current_stock > 0) AS low_stock_count,
-           SUM(current_stock = 0) AS out_of_stock_count
+           SUM(stock_status COLLATE utf8mb4_unicode_ci = 'Low Stock') AS low_stock_count,
+           SUM(stock_status COLLATE utf8mb4_unicode_ci = 'Out of Stock') AS out_of_stock_count
          FROM Supplier_Stock_Status
          WHERE supplier_id = ?`,
         [supplierId]

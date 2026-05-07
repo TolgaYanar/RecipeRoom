@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Settings, MapPin, Sparkles, Plus, Trash2, Info, X, Package, ListOrdered } from 'lucide-react';
+import { Settings, MapPin, Sparkles, Plus, Trash2, Info, X, Package, ListOrdered, ChevronDown, ChevronUp, StickyNote } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import RecipeCard from '../components/RecipeCard';
 import EmptyState from '../components/EmptyState';
@@ -11,7 +11,7 @@ import {
   getSavedRecipes, getFollowState, getUserBalance,
 } from '../api/users';
 import TopUpModal from '../components/TopUpModal';
-import { getMyOrders } from '../api/orders';
+import { getMyOrders, getOrder } from '../api/orders';
 import { getCookLog } from '../api/cookLog';
 import {
   getFlavorProfile, updateFlavorProfile,
@@ -25,6 +25,21 @@ const TABS_BASE = [
   { id: 'orders',         label: 'Orders'         },
   { id: 'flavor-profile', label: 'Flavor Profile' },
 ];
+
+function tabsForRole(role) {
+  if (role === 'Verified_Chef') {
+    return [
+      { id: 'my-recipes',     label: 'My Recipes'     },
+      { id: 'saved',          label: 'Saved'          },
+      { id: 'flavor-profile', label: 'Flavor Profile' },
+      { id: 'royalties',      label: 'Royalties'      },
+    ];
+  }
+  if (role === 'Local_Supplier' || role === 'Administrator') {
+    return [];
+  }
+  return TABS_BASE;
+}
 
 const INGREDIENT_PICK_LIST = [
   'Tomato', 'Garlic', 'Onion', 'Chicken', 'Salmon', 'Avocado',
@@ -86,10 +101,9 @@ export default function Profile() {
     );
   }
 
-  const isChef = user.user_type === 'Verified_Chef';
-  const tabs = isChef
-    ? [...TABS_BASE, { id: 'royalties', label: 'Royalties' }]
-    : TABS_BASE;
+  const tabs = tabsForRole(user.user_type);
+  // a stale ?tab=... param from another role shouldn't render a blank panel
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null);
 
   const displayName = profile?.username || user.username || 'User';
   const handle      = profile?.handle ?? deriveHandle(displayName);
@@ -110,17 +124,19 @@ export default function Profile() {
           onEdit={() => setEditing(true)}
         />
 
-        <div className="mt-6 mb-8">
-          <SegmentedTabs tabs={tabs} value={tab} onChange={changeTab} />
-        </div>
+        {tabs.length > 0 && (
+          <div className="mt-6 mb-8">
+            <SegmentedTabs tabs={tabs} value={activeTab} onChange={changeTab} />
+          </div>
+        )}
 
-        {tab === 'my-recipes'    && <MyRecipesTab userId={user.user_id} />}
-        {tab === 'saved'         && <SavedRecipesTab userId={user.user_id} />}
-        {tab === 'meal-lists'    && <MealListsTab userId={user.user_id} />}
-        {tab === 'cook-log'      && <CookLogTab userId={user.user_id} />}
-        {tab === 'orders'        && <OrdersTab />}
-        {tab === 'flavor-profile'&& <FlavorProfileTab userId={user.user_id} />}
-        {tab === 'royalties'     && <RoyaltiesTab userId={user.user_id} />}
+        {activeTab === 'my-recipes'    && <MyRecipesTab userId={user.user_id} />}
+        {activeTab === 'saved'         && <SavedRecipesTab userId={user.user_id} />}
+        {activeTab === 'meal-lists'    && <MealListsTab userId={user.user_id} />}
+        {activeTab === 'cook-log'      && <CookLogTab userId={user.user_id} />}
+        {activeTab === 'orders'        && <OrdersTab />}
+        {activeTab === 'flavor-profile'&& <FlavorProfileTab userId={user.user_id} />}
+        {activeTab === 'royalties'     && <RoyaltiesTab userId={user.user_id} />}
       </div>
 
       {editing && (
@@ -733,29 +749,42 @@ function OrdersTab() {
 }
 
 function OrderRow({ order: o }) {
-  const status    = (o.status || 'pending').toLowerCase();
+  const [open, setOpen] = useState(false);
   const placed    = o.order_date ?? o.placed_at ?? o.created_at ?? o.date;
   const total     = o.total_price ?? o.total ?? 0;
   const itemCount = o.item_count ?? (o.items?.length ?? 0);
+  const address   = o.delivery_address;
+  const orderId   = o.order_id ?? o.id;
 
   return (
     <div className="bg-white border border-[#EBEBEB] rounded-xl p-4">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-[#FAF8F5] border border-[#EBEBEB] flex items-center justify-center shrink-0">
-            <Package className="w-4 h-4 text-[#1B3A2D]" strokeWidth={1.5} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-[#1A1A1A]">
-              Order #{o.order_id ?? o.id}
-            </div>
-            <div className="text-[12px] text-[#6B6B6B]">
-              {placed ? new Date(placed).toLocaleDateString() : '—'}
-              {o.recipe_title ? ` · ${o.recipe_title}` : ''}
-            </div>
-          </div>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="w-9 h-9 rounded-lg bg-[#FAF8F5] border border-[#EBEBEB] flex items-center justify-center shrink-0">
+          <Package className="w-4 h-4 text-[#1B3A2D]" strokeWidth={1.5} />
         </div>
-        <StatusPill status={status} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-semibold text-[#1A1A1A]">
+            Order #{orderId}
+          </div>
+          <div className="text-[12px] text-[#6B6B6B]">
+            {placed ? new Date(placed).toLocaleDateString() : '—'}
+            {o.recipe_title ? ` · ${o.recipe_title}` : ''}
+          </div>
+          {address && (
+            <div className="flex items-center gap-1 text-[12px] text-[#6B6B6B] mt-0.5 truncate">
+              <MapPin className="w-3 h-3 shrink-0" strokeWidth={1.5} />
+              <span className="truncate">{address}</span>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="w-8 h-8 flex items-center justify-center rounded-md text-[#6B6B6B] hover:bg-[#F5F5F5] shrink-0"
+          aria-label={open ? 'Hide details' : 'Show details'}
+        >
+          {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
       </div>
 
       <div className="flex items-center justify-between text-[13px] text-[#6B6B6B]">
@@ -764,23 +793,65 @@ function OrderRow({ order: o }) {
           ${Number(total).toFixed(2)}
         </span>
       </div>
+
+      {open && <OrderDetails orderId={orderId} />}
     </div>
   );
 }
 
-function StatusPill({ status }) {
-  const cls = {
-    pending:   'bg-[#FFF7DC] text-[#8A6E00]',
-    fulfilled: 'bg-[#E8F1EC] text-[#1B5E20]',
-    shipped:   'bg-[#E3F2FD] text-[#0D47A1]',
-    completed: 'bg-[#E8F1EC] text-[#1B5E20]',
-    cancelled: 'bg-[#FEEBEE] text-[#B71C1C]',
-  }[status] || 'bg-[#F0F0F0] text-[#6B6B6B]';
+function OrderDetails({ orderId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    getOrder(orderId)
+      .then((d) => { if (!cancelled) setData(d ?? {}); })
+      .catch(()  => { if (!cancelled) setData({}); });
+    return () => { cancelled = true; };
+  }, [orderId]);
+
+  if (data === null) {
+    return <div className="mt-3 pt-3 border-t border-[#EBEBEB]"><LoadingSpinner size="sm" /></div>;
+  }
+
+  const items = data.items ?? [];
+
+  // group items by supplier so the cook can see who fulfills what
+  const groups = items.reduce((acc, it) => {
+    const key = it.supplier_id ?? 0;
+    if (!acc[key]) acc[key] = { supplier_name: it.supplier_name ?? 'Supplier', items: [] };
+    acc[key].items.push(it);
+    return acc;
+  }, {});
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${cls}`}>
-      {capitalize(status)}
-    </span>
+    <div className="mt-3 pt-3 border-t border-[#EBEBEB] space-y-3">
+      {data.delivery_notes && (
+        <div className="flex items-start gap-2 px-3 py-2 bg-[#FAF8F5] border border-[#EBEBEB] rounded-lg">
+          <StickyNote className="w-4 h-4 text-[#A8893E] shrink-0 mt-0.5" strokeWidth={1.5} />
+          <div className="text-[12px] text-[#6B6B6B]">{data.delivery_notes}</div>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-[13px] text-[#9E9E9E]">No items in this order.</p>
+      ) : (
+        Object.values(groups).map((g, i) => (
+          <div key={i}>
+            <div className="text-[12px] font-semibold text-[#1A1A1A] mb-1.5">{g.supplier_name}</div>
+            <ul className="space-y-1.5">
+              {g.items.map((it, j) => (
+                <li key={j} className="flex items-center justify-between text-[13px]">
+                  <span className="text-[#1A1A1A]">
+                    {it.purchased_quantity}{it.unit ? ` ${it.unit}` : ''} · {it.ingredient_name}
+                  </span>
+                  <span className="text-[#6B6B6B]">${Number(it.subtotal ?? 0).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 

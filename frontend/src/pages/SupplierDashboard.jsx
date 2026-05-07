@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, AlertCircle, DollarSign, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Package, AlertCircle, ShoppingBag, ArrowRight, Wallet } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useAuth } from '../context/AuthContext';
 import { getSupplierInventory } from '../api/suppliers';
 import { getSupplierOrders } from '../api/orders';
-
-const LOW_STOCK = 50;
 
 export default function SupplierDashboard() {
   const { user } = useAuth();
@@ -36,20 +34,16 @@ export default function SupplierDashboard() {
   }
 
   const inventory = inv.inventory ?? [];
-  const lowStock  = inventory.filter((it) => Number(it.current_stock ?? 0) < LOW_STOCK);
+  const lowStock  = inventory.filter((it) => it.stock_status === 'Low Stock');
 
-  const openOrders = orders.filter((o) => {
-    const s = (o.status || '').toLowerCase();
-    return s === 'pending' || s === 'fulfilled';
-  });
-
-  // revenue this month — non-cancelled order totals dated in the current month
   const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const ordersThisWeek = orders.filter((o) => new Date(o.order_date ?? 0) >= weekAgo);
+
   const monthRevenue = orders.reduce((sum, o) => {
-    if ((o.status || '').toLowerCase() === 'cancelled') return sum;
     const d = new Date(o.order_date ?? 0);
     const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    return sameMonth ? sum + Number(o.total_price ?? 0) : sum;
+    return sameMonth ? sum + Number(o.supplier_total ?? 0) : sum;
   }, 0);
 
   return (
@@ -67,8 +61,8 @@ export default function SupplierDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Kpi
             icon={<ShoppingBag className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
-            label="Open Orders"
-            value={openOrders.length}
+            label="Orders This Week"
+            value={ordersThisWeek.length}
             href="/supplier/orders"
           />
           <Kpi
@@ -85,9 +79,10 @@ export default function SupplierDashboard() {
             href="/supplier/inventory"
           />
           <Kpi
-            icon={<DollarSign className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
-            label="Revenue This Month"
-            value={`$${monthRevenue.toFixed(2)}`}
+            icon={<Wallet className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
+            label="Wallet Balance"
+            value={`$${Number(inv.supplier?.balance ?? 0).toFixed(2)}`}
+            sub={`This month: $${monthRevenue.toFixed(2)}`}
           />
         </div>
 
@@ -100,7 +95,7 @@ export default function SupplierDashboard() {
   );
 }
 
-function Kpi({ icon, label, value, href, warn }) {
+function Kpi({ icon, label, value, href, warn, sub }) {
   const inner = (
     <div className="bg-white border border-[#EBEBEB] rounded-2xl p-5 hover:border-[#1B3A2D] transition-colors h-full">
       <div className="flex items-center gap-2 mb-3">
@@ -112,6 +107,7 @@ function Kpi({ icon, label, value, href, warn }) {
       <div className={`text-[26px] font-bold ${warn ? 'text-[#B71C1C]' : 'text-[#1A1A1A]'} leading-tight`}>
         {value}
       </div>
+      {sub && <div className="text-[11px] text-[#9E9E9E] mt-1">{sub}</div>}
     </div>
   );
   return href ? <Link to={href} className="block">{inner}</Link> : inner;
@@ -146,7 +142,7 @@ function RecentOrdersCard({ orders }) {
                 </div>
               </div>
               <div className="text-[13px] font-semibold text-[#1A1A1A] shrink-0">
-                ${Number(o.total_price ?? 0).toFixed(2)}
+                ${Number(o.supplier_total ?? 0).toFixed(2)}
               </div>
             </li>
           ))}
@@ -180,7 +176,7 @@ function LowStockCard({ items }) {
                 <div className="text-[11px] text-[#6B6B6B]">{it.generic_taxonomy_name}</div>
               </div>
               <div className="text-[13px] font-semibold text-[#B71C1C] shrink-0">
-                {it.current_stock} {it.unit ?? ''} left
+                {formatQty(it.current_stock)} {it.unit ?? ''} left
               </div>
             </li>
           ))}
@@ -188,4 +184,10 @@ function LowStockCard({ items }) {
       )}
     </section>
   );
+}
+
+function formatQty(n) {
+  const q = Number(n);
+  if (!Number.isFinite(q)) return '';
+  return Number.isInteger(q) ? `${q}` : q.toFixed(2).replace(/\.?0+$/, '');
 }

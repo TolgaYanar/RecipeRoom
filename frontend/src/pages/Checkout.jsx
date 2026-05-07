@@ -9,7 +9,10 @@ import TopUpModal from '../components/TopUpModal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import useCart from '../hooks/useCart';
-import { cartSubtotal, cartTotal, DELIVERY_FEE, clearCart } from '../lib/cart';
+import {
+  cartSubtotal, cartTotal, cartDeliveryFee, cartSupplierCount,
+  DELIVERY_FEE_PER_SUPPLIER, clearCart,
+} from '../lib/cart';
 import { createOrder } from '../api/orders';
 import { getUserBalance } from '../api/users';
 
@@ -87,9 +90,8 @@ export default function Checkout() {
   const completeOrder = async () => {
     setSubmitting(true);
     try {
-      // Orders table has one recipe per row, so fire one POST per recipe in
-      // the cart. delivery + payment are collected in the form for UX but
-      // aren't persisted yet (no schema for them).
+      // Orders table has one recipe per row, so fire one POST per recipe
+      // in the cart. Payment method is collected for UX but not persisted.
       for (const r of cart.recipes) {
         const ratio = r.servings / (r.base_servings || r.servings || 1);
         const items = (r.ingredients || [])
@@ -99,6 +101,7 @@ export default function Checkout() {
             supplier_id:        ing.supplier.id,
             purchased_quantity: Number(ing.quantity || 0) * ratio,
             subtotal:           (Number(ing.price) || 0) * ratio,
+            unit:               ing.unit ?? null,
           }));
 
         if (items.length === 0) {
@@ -112,6 +115,8 @@ export default function Checkout() {
           scaled_serving: r.servings,
           total_price,
           items,
+          delivery_address: address.trim(),
+          delivery_notes:   notes.trim() || null,
         });
       }
 
@@ -456,6 +461,8 @@ function PaymentOption({ checked, onSelect, icon, title, subtitle, right, disabl
 function Sidebar({ cart, step, submitting, onNext, onBack, onComplete }) {
   const sub   = cartSubtotal(cart);
   const total = cartTotal(cart);
+  const supplierCount = cartSupplierCount(cart);
+  const fee = cartDeliveryFee(cart);
 
   return (
     <aside className="bg-white rounded-2xl border border-[#EBEBEB] p-6 sticky top-24">
@@ -476,8 +483,13 @@ function Sidebar({ cart, step, submitting, onNext, onBack, onComplete }) {
           <span className="text-[#1A1A1A] font-semibold">${sub.toFixed(2)}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[#6B6B6B]">Delivery Fee</span>
-          <span className="text-[#1A1A1A] font-semibold">${DELIVERY_FEE.toFixed(2)}</span>
+          <span className="text-[#6B6B6B]">
+            Delivery
+            {supplierCount > 0 && (
+              <span className="text-[12px] text-[#9E9E9E]"> · {supplierCount} × ${DELIVERY_FEE_PER_SUPPLIER.toFixed(2)}</span>
+            )}
+          </span>
+          <span className="text-[#1A1A1A] font-semibold">${fee.toFixed(2)}</span>
         </div>
       </div>
 

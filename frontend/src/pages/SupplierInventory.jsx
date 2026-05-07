@@ -10,7 +10,19 @@ import {
 } from '../api/suppliers';
 import { searchIngredients } from '../api/ingredients';
 
-const LOW_STOCK = 50;
+// Unit-aware low-stock thresholds — mirrors the SQL view so the live
+// badge while editing matches what the backend will say after save.
+const LOW_STOCK_BY_UNIT = {
+  g: 100, kg: 0.1, mg: 100000,
+  ml: 100, l: 0.1,
+  piece: 5, pieces: 5, pcs: 5, unit: 5, units: 5,
+};
+const LOW_STOCK_DEFAULT = 30;
+
+function lowStockThreshold(unit) {
+  const u = String(unit ?? '').trim().toLowerCase();
+  return LOW_STOCK_BY_UNIT[u] ?? LOW_STOCK_DEFAULT;
+}
 
 export default function SupplierInventory() {
   const { user } = useAuth();
@@ -184,7 +196,7 @@ function InventoryRow({ item, onSave, onDelete }) {
   const status = (() => {
     const s = Number(stock);
     if (s <= 0) return { label: 'Out of Stock', cls: 'bg-[#FEEBEE] text-[#B71C1C]' };
-    if (s < LOW_STOCK) return { label: 'Low Stock', cls: 'bg-[#FFF7DC] text-[#8A6E00]' };
+    if (s < lowStockThreshold(item.unit)) return { label: 'Low Stock', cls: 'bg-[#FFF7DC] text-[#8A6E00]' };
     return { label: 'In Stock', cls: 'bg-[#E8F1EC] text-[#1B5E20]' };
   })();
 

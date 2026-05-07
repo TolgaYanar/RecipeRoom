@@ -383,6 +383,8 @@ export default function RecipeDetail() {
       {shopOpen && (
         <SubstitutionPicker
           recipe={recipe}
+          servings={servings}
+          baseServings={recipe.servings ?? servings}
           onClose={() => setShopOpen(false)}
           onConfirm={handleConfirmShop}
         />
@@ -568,21 +570,27 @@ function IngredientsCard({ ingredients, substitutions, onAddToCart }) {
 
       {substitutions.length > 0 && (
         <div className="space-y-2 mb-5">
-          {substitutions.map((s, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 px-3 py-2 border border-[#EBEBEB] rounded-lg text-[13px]"
-            >
-              <span className="text-[#1A1A1A] font-medium">{s.from}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#1B3A2D]" strokeWidth={1.5} />
-              <span className="text-[#1B3A2D] font-medium">{s.to}</span>
-              {s.scale && (
-                <span className="ml-auto text-[12px] text-[#6B6B6B] bg-[#FAF8F5] px-2 py-0.5 rounded">
-                  ×{s.scale}
-                </span>
-              )}
-            </div>
-          ))}
+          {substitutions.map((s, i) => {
+            const from  = s.from  ?? s.source_ingredient_name;
+            const to    = s.to    ?? s.sub_ingredient_name;
+            const scale = s.scale ?? s.quantity_multiplier;
+            const scaleNum = Number(scale);
+            return (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-3 py-2 border border-[#EBEBEB] rounded-lg text-[13px]"
+              >
+                <span className="text-[#1A1A1A] font-medium">{from}</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#1B3A2D]" strokeWidth={1.5} />
+                <span className="text-[#1B3A2D] font-medium">{to}</span>
+                {Number.isFinite(scaleNum) && scaleNum !== 1 && (
+                  <span className="ml-auto text-[12px] text-[#6B6B6B] bg-[#FAF8F5] px-2 py-0.5 rounded">
+                    ×{scaleNum}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

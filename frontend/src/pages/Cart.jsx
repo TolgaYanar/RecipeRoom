@@ -3,7 +3,8 @@ import { Trash2, Minus, Plus, ChefHat, MapPin, ArrowRight } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import useCart from '../hooks/useCart';
 import {
-  removeRecipe, updateServings, recipeSubtotal, cartSubtotal, cartTotal, DELIVERY_FEE,
+  removeRecipe, updateServings, recipeSubtotal, cartSubtotal, cartTotal,
+  cartDeliveryFee, cartSupplierCount, DELIVERY_FEE_PER_SUPPLIER,
 } from '../lib/cart';
 
 export default function Cart() {
@@ -126,6 +127,8 @@ function OrderSummarySidebar() {
   const navigate = useNavigate();
   const sub = cartSubtotal(cart);
   const total = cartTotal(cart);
+  const supplierCount = cartSupplierCount(cart);
+  const fee           = cartDeliveryFee(cart);
 
   return (
     <aside className="bg-white rounded-2xl border border-[#EBEBEB] p-6 sticky top-24">
@@ -137,8 +140,13 @@ function OrderSummarySidebar() {
           <span className="text-[#1A1A1A] font-semibold">${sub.toFixed(2)}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[#6B6B6B]">Delivery Fee</span>
-          <span className="text-[#1A1A1A] font-semibold">${DELIVERY_FEE.toFixed(2)}</span>
+          <span className="text-[#6B6B6B]">
+            Delivery
+            {supplierCount > 0 && (
+              <span className="text-[12px] text-[#9E9E9E]"> · {supplierCount} supplier{supplierCount === 1 ? '' : 's'} × ${DELIVERY_FEE_PER_SUPPLIER.toFixed(2)}</span>
+            )}
+          </span>
+          <span className="text-[#1A1A1A] font-semibold">${fee.toFixed(2)}</span>
         </div>
       </div>
 

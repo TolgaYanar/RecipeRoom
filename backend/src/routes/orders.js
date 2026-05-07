@@ -1,9 +1,10 @@
 const express = require('express');
 const { query, withTransaction } = require('../utils/db');
 const { requireLogin, requireRole } = require('../middleware/auth');
+const { hasEnough, convert } = require('../utils/units');
  
 const router = express.Router();
-const DELIVERY_FEE = 4.99;
+const DELIVERY_FEE_PER_SUPPLIER = 2.49;
 // ─────────────────────────────────────────────
 // POST /api/orders
 // Home Cook only.
@@ -27,9 +28,9 @@ const DELIVERY_FEE = 4.99;
 // Challenge score: +1 per qualifying purchase.
 // ─────────────────────────────────────────────
 router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
-  const { recipe_id, scaled_serving, total_price, items } = req.body;
+  const { recipe_id, scaled_serving, total_price, items, delivery_address, delivery_notes } = req.body;
 
-  if (!recipe_id || !scaled_serving || !total_price || !Array.isArray(items) || items.length === 0) {
+  if (!recipe_id || !scaled_serving || !total_price || !Array.isArray(items) || items.length === 0 || !delivery_address) {
     return res.status(400).json({
       error: 'validation',
       fields: {
@@ -37,6 +38,7 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
         scaled_serving: !scaled_serving ? 'Required' : undefined,
         total_price: !total_price ? 'Required' : undefined,
         items: (!Array.isArray(items) || items.length === 0) ? 'At least one item required' : undefined,
+        delivery_address: !delivery_address ? 'Required' : undefined,
       },
     });
   }
@@ -59,8 +61,11 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
       return res.status(400).json({ error: 'Cannot order ingredients for an unpublished recipe' });
     }
 
+    const distinctSuppliers = new Set(items.map((it) => it.supplier_id)).size;
+    const deliveryFee = distinctSuppliers * DELIVERY_FEE_PER_SUPPLIER;
+
     const orderId = await withTransaction(async (conn) => {
-      const grandTotal = Number(total_price) + DELIVERY_FEE;
+      const grandTotal = Number(total_price) + deliveryFee;
       const [[cook]] = await conn.execute(
         'SELECT balances FROM Home_Cook WHERE user_id = ? FOR UPDATE',
         [req.user.id]
@@ -69,10 +74,19 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
         throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${grandTotal}`);
       }
 
+      // Recipe's expected unit per ingredient — purchased_quantity from the
+      // client comes in this unit, while Stocks may use a different one
+      // (e.g. supplier sells kg, recipe asks g).
+      const [reqUnitRows] = await conn.execute(
+        'SELECT ingredient_id, unit FROM Requires WHERE recipe_id = ?',
+        [recipe_id]
+      );
+      const recipeUnitMap = new Map(reqUnitRows.map((r) => [r.ingredient_id, r.unit]));
+
       const [orderResult] = await conn.execute(
-        `INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving)
-         VALUES (NOW(), ?, ?, ?, ?)`,
-        [total_price, req.user.id, recipe_id, scaled_serving]
+        `INSERT INTO Orders (order_date, total_price, creator_id, recipe_id, scaled_serving, delivery_address, delivery_notes)
+         VALUES (NOW(), ?, ?, ?, ?, ?, ?)`,
+        [total_price, req.user.id, recipe_id, scaled_serving, delivery_address, delivery_notes ?? null]
       );
       const newOrderId = orderResult.insertId;
 
@@ -80,16 +94,37 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
         const { ingredient_id, supplier_id, purchased_quantity, subtotal } = item;
 
         const [[stockRow]] = await conn.execute(
-          'SELECT current_stock FROM Stocks WHERE supplier_id = ? AND ingredient_id = ? FOR UPDATE',
+          `SELECT s.current_stock, s.unit, i.name AS ingredient_name, ls.business_name AS supplier_name
+           FROM Stocks s
+           JOIN Ingredient i ON s.ingredient_id = i.ingredient_id
+           JOIN Local_Supplier ls ON s.supplier_id = ls.user_id
+           WHERE s.supplier_id = ? AND s.ingredient_id = ? FOR UPDATE`,
           [supplier_id, ingredient_id]
         );
         if (!stockRow) {
           throw new Error(`Supplier ${supplier_id} does not stock ingredient ${ingredient_id}`);
         }
-        if (stockRow.current_stock < purchased_quantity) {
+
+        // Trust the unit the cart sent (which mirrors what the picker
+        // displayed); if absent, fall back to the recipe's Requires entry
+        // and only then to the supplier's own unit. This matters for
+        // substitutes — Requires only knows the original ingredient.
+        const recipeUnit = item.unit ?? recipeUnitMap.get(ingredient_id) ?? stockRow.unit;
+        const stockUnit  = stockRow.unit;
+        const qtyInStockUnit = convert(purchased_quantity, recipeUnit, stockUnit);
+
+        if (qtyInStockUnit == null) {
           throw new Error(
-            `Insufficient stock for ingredient ${ingredient_id} at supplier ${supplier_id}. ` +
-            `Available: ${stockRow.current_stock}, Requested: ${purchased_quantity}`
+            `Cannot reconcile units for ${stockRow.ingredient_name}: recipe uses ${recipeUnit}, ` +
+            `${stockRow.supplier_name} sells in ${stockUnit}.`
+          );
+        }
+        if (!hasEnough(stockRow.current_stock, stockUnit, purchased_quantity, recipeUnit)) {
+          const ru = recipeUnit ?? '';
+          const su = stockUnit ?? '';
+          throw new Error(
+            `Insufficient stock for ${stockRow.ingredient_name} at ${stockRow.supplier_name}. ` +
+            `Available: ${stockRow.current_stock}${su}, Requested: ${purchased_quantity}${ru}`
           );
         }
 
@@ -98,15 +133,33 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
            VALUES (?, ?, ?, ?, ?)`,
           [newOrderId, ingredient_id, supplier_id, purchased_quantity, subtotal]
         );
-        
+
+        // Deduct in the supplier's own unit so we don't accidentally subtract
+        // 150 (g) from a stock counted in kg.
         await conn.execute(
           'UPDATE Stocks SET current_stock = current_stock - ? WHERE supplier_id = ? AND ingredient_id = ?',
-          [purchased_quantity, supplier_id, ingredient_id]
+          [qtyInStockUnit, supplier_id, ingredient_id]
         );
       }
+
+      // Credit each supplier their ingredient subtotal + one delivery fee
+      // for the trip. Aggregating per supplier first avoids charging the
+      // delivery fee per line.
+      const perSupplier = new Map();
+      for (const it of items) {
+        const sid = it.supplier_id;
+        perSupplier.set(sid, (perSupplier.get(sid) || 0) + Number(it.subtotal || 0));
+      }
+      for (const [sid, ingTotal] of perSupplier) {
+        await conn.execute(
+          'UPDATE Local_Supplier SET balance = balance + ? WHERE user_id = ?',
+          [ingTotal + DELIVERY_FEE_PER_SUPPLIER, sid]
+        );
+      }
+
       await conn.execute(
         'UPDATE Home_Cook SET balances = balances - ? WHERE user_id = ?',
-        [Number(total_price) + DELIVERY_FEE, req.user.id]
+        [Number(total_price) + deliveryFee, req.user.id]
       );
 
       return newOrderId;
@@ -117,8 +170,10 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
     res.status(201).json({
       order_id: orderId,
       ingredients_total: Number(total_price).toFixed(2),
-      delivery_fee: DELIVERY_FEE,
-      grand_total: (Number(total_price) + DELIVERY_FEE).toFixed(2),
+      delivery_fee: deliveryFee.toFixed(2),
+      delivery_fee_per_supplier: DELIVERY_FEE_PER_SUPPLIER,
+      supplier_count: distinctSuppliers,
+      grand_total: (Number(total_price) + deliveryFee).toFixed(2),
       message: 'Order placed successfully',
     });
   } catch (err) {
@@ -169,6 +224,7 @@ router.get('/mine', requireLogin, async (req, res) => {
   try {
     const orders = await query(
       `SELECT o.order_id, o.order_date, o.total_price, o.scaled_serving,
+              o.delivery_address, o.delivery_notes,
               r.recipe_id, r.title AS recipe_title,
               (SELECT COUNT(*) FROM Fulfills_Item fi WHERE fi.order_id = o.order_id) AS item_count
        FROM Orders o
@@ -191,11 +247,12 @@ router.get('/mine', requireLogin, async (req, res) => {
 router.get('/:id', requireLogin, async (req, res) => {
     const orderId = parseInt(req.params.id);
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' });
-   
+
     try {
       const [order] = await query(
         `SELECT o.order_id, o.order_date, o.total_price, o.scaled_serving,
-                o.creator_id, r.recipe_id, r.title AS recipe_title,
+                o.creator_id, o.delivery_address, o.delivery_notes,
+                r.recipe_id, r.title AS recipe_title,
                 u.UserName AS customer_name
          FROM Orders o
          JOIN Recipe r ON o.recipe_id = r.recipe_id
@@ -204,7 +261,7 @@ router.get('/:id', requireLogin, async (req, res) => {
         [orderId]
       );
       if (!order) return res.status(404).json({ error: 'Order not found' });
-   
+
       const isCreator = req.user.id === order.creator_id;
       if (!isCreator) {
         const [inv] = await query(
@@ -213,8 +270,10 @@ router.get('/:id', requireLogin, async (req, res) => {
         );
         if (!inv || inv.cnt === 0) return res.status(403).json({ error: 'Forbidden' });
       }
-   
-      const items = await query(
+
+      // Suppliers only see their own line items + their own slice of the total.
+      // The cook (creator) sees the full order.
+      const itemsSql =
         `SELECT fi.ingredient_id, i.name AS ingredient_name,
                 fi.supplier_id, ls.business_name AS supplier_name,
                 fi.purchased_quantity, fi.subtotal, s.unit
@@ -222,11 +281,16 @@ router.get('/:id', requireLogin, async (req, res) => {
          JOIN Ingredient i ON fi.ingredient_id = i.ingredient_id
          JOIN Local_Supplier ls ON fi.supplier_id = ls.user_id
          LEFT JOIN Stocks s ON fi.supplier_id = s.supplier_id AND fi.ingredient_id = s.ingredient_id
-         WHERE fi.order_id = ?`,
-        [orderId]
-      );
-   
-      res.json({ ...order, items });
+         WHERE fi.order_id = ?` + (isCreator ? '' : ' AND fi.supplier_id = ?');
+
+      const items = await query(itemsSql, isCreator ? [orderId] : [orderId, req.user.id]);
+
+      const response = { ...order, items };
+      if (!isCreator) {
+        response.supplier_total = items.reduce((s, it) => s + Number(it.subtotal || 0), 0);
+        delete response.total_price;
+      }
+      res.json(response);
     } catch (err) {
       console.error('Error fetching order:', err);
       res.status(500).json({ error: 'Internal server error' });

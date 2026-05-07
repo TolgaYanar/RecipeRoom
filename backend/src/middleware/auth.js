@@ -26,6 +26,26 @@ function requireLogin(req, res, next) {
   }
 }
 
+// Like requireLogin but tolerant of missing/invalid tokens. Use on
+// public routes that should still attribute the request to a user
+// when one is signed in.
+function optionalAuth(req, res, next) {
+  const token = getTokenFromHeader(req);
+  if (!token) return next();
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: payload.user_id,
+      user_type: payload.user_type,
+      username: payload.username,
+      email: payload.email,
+    };
+  } catch {
+    // Bad token on a public route → just treat as anonymous.
+  }
+  return next();
+}
+
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.user) {
@@ -40,4 +60,4 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = { requireLogin, requireRole, JWT_SECRET };
+module.exports = { requireLogin, optionalAuth, requireRole, JWT_SECRET };
