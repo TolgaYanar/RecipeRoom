@@ -11,3 +11,12 @@ export const getSupplierOrders = () =>
 
 export const getOrder = (id) =>
   client.get(`/orders/${id}`).then(r => r.data);
+
+export const cancelOrderLine = (id, notes) =>
+  client.post(`/orders/${id}/cancel`, { notes }).then(r => r.data);
+
+export const markOrderShipped = (id) =>
+  client.post(`/orders/${id}/ship`).then(r => r.data);
+
+export const markOrderReceived = (id) =>
+  client.post(`/orders/${id}/receive`).then(r => r.data);

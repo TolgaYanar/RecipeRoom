@@ -346,6 +346,24 @@ CREATE TABLE Fulfills_Item(
     FOREIGN KEY (supplier_id) REFERENCES Local_Supplier(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+-- Order lifecycle events. Status is derived from the latest event(s)
+-- rather than stored as a column. supplier_id is set when the event is
+-- scoped to one supplier (cancellation, shipment) and NULL when it
+-- covers the whole order (placement).
+CREATE TABLE Order_Events(
+    event_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NOT NULL,
+    supplier_id INT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    actor_user_id INT NULL,
+    notes VARCHAR(500) NULL,
+    occurred_at DATETIME NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (supplier_id) REFERENCES Local_Supplier(user_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (actor_user_id) REFERENCES User(user_id) ON DELETE SET NULL ON UPDATE CASCADE,
+    INDEX idx_order_events_order (order_id, occurred_at)
+);
+
 -- =============================================
 -- VIEWS
 -- =============================================

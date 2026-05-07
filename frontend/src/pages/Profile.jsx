@@ -11,7 +11,8 @@ import {
   getSavedRecipes, getFollowState, getUserBalance,
 } from '../api/users';
 import TopUpModal from '../components/TopUpModal';
-import { getMyOrders, getOrder } from '../api/orders';
+import { getMyOrders, getOrder, markOrderReceived } from '../api/orders';
+import { useToast } from '../context/ToastContext';
 import { getCookLog } from '../api/cookLog';
 import {
   getFlavorProfile, updateFlavorProfile,
@@ -729,32 +730,57 @@ function MealListsTab({ userId }) {
 
 function OrdersTab() {
   const [orders, setOrders] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     getMyOrders()
       .then((data) => setOrders(itemsOf(data)))
       .catch(() => setOrders([]));
-  }, []);
+  }, [reloadKey]);
 
   if (orders === null) return <LoadingSpinner size="lg" />;
   if (orders.length === 0) {
     return <EmptyState message="No orders yet. Try Shop This Meal on a recipe to get started." icon="🛒" />;
   }
 
+  const reload = () => setReloadKey((k) => k + 1);
+
   return (
     <div className="space-y-3">
-      {orders.map((o) => <OrderRow key={o.order_id ?? o.id} order={o} />)}
+      {orders.map((o) => <OrderRow key={o.order_id ?? o.id} order={o} onChange={reload} />)}
     </div>
   );
 }
 
-function OrderRow({ order: o }) {
+function OrderRow({ order: o, onChange }) {
+  const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [acting, setActing] = useState(false);
   const placed    = o.order_date ?? o.placed_at ?? o.created_at ?? o.date;
   const total     = o.total_price ?? o.total ?? 0;
   const itemCount = o.item_count ?? (o.items?.length ?? 0);
   const address   = o.delivery_address;
   const orderId   = o.order_id ?? o.id;
+  const cancelledCount = Number(o.cancelled_supplier_count ?? 0);
+  const shippedCount   = Number(o.shipped_supplier_count ?? 0);
+  const supplierCount  = Number(o.supplier_count ?? 0);
+  const deliveredAt    = o.delivered_at ? new Date(o.delivered_at) : null;
+  const refunded       = Number(o.refunded_amount ?? 0);
+  const ageDays   = placed ? Math.floor((Date.now() - new Date(placed).getTime()) / 86400000) : 0;
+  const arrivesBy = placed ? new Date(new Date(placed).getTime() + 3 * 86400000) : null;
+  const fullyCancelled = supplierCount > 0 && cancelledCount >= supplierCount;
+  const canMarkReceived = !deliveredAt && !fullyCancelled;
+
+  const handleReceive = async () => {
+    setActing(true);
+    try {
+      await markOrderReceived(orderId);
+      toast.success('Order marked received');
+      onChange?.();
+    } catch {
+      setActing(false);
+    }
+  };
 
   return (
     <div className="bg-white border border-[#EBEBEB] rounded-xl p-4">
@@ -794,7 +820,89 @@ function OrderRow({ order: o }) {
         </span>
       </div>
 
+      <OrderStatusLine
+        cancelledCount={cancelledCount}
+        shippedCount={shippedCount}
+        supplierCount={supplierCount}
+        deliveredAt={deliveredAt}
+        ageDays={ageDays}
+        arrivesBy={arrivesBy}
+        fullyCancelled={fullyCancelled}
+        refunded={refunded}
+        canMarkReceived={canMarkReceived}
+        acting={acting}
+        onReceive={handleReceive}
+      />
+
       {open && <OrderDetails orderId={orderId} />}
+    </div>
+  );
+}
+
+// State precedence (most authoritative first): full cancel → partial cancel
+// banner → cook-confirmed delivered → all suppliers shipped → some shipped →
+// time-fallback delivered (≥ 3 days, no other signal) → arriving.
+function OrderStatusLine({
+  cancelledCount, shippedCount, supplierCount,
+  deliveredAt, ageDays, arrivesBy, fullyCancelled, refunded,
+  canMarkReceived, acting, onReceive,
+}) {
+  const refundLabel = refunded > 0 ? ` · $${refunded.toFixed(2)} refunded` : '';
+  if (fullyCancelled) {
+    return (
+      <div className="mt-2 px-2.5 py-1.5 bg-[#FEEBEE] border border-[#F5C0C0] rounded-md text-[12px] text-[#B71C1C]">
+        Order cancelled — full refund of ${refunded.toFixed(2)} issued to your wallet
+      </div>
+    );
+  }
+  if (cancelledCount > 0) {
+    return (
+      <div className="mt-2 px-2.5 py-1.5 bg-[#FEEBEE] border border-[#F5C0C0] rounded-md text-[12px] text-[#B71C1C]">
+        {cancelledCount} of {supplierCount} suppliers cancelled{refundLabel}
+      </div>
+    );
+  }
+  if (deliveredAt) {
+    return (
+      <div className="mt-2 text-[12px] text-[#1B5E20]">
+        ✓ Delivered {deliveredAt.toLocaleDateString()}
+      </div>
+    );
+  }
+  if (shippedCount > 0 && shippedCount === supplierCount) {
+    return (
+      <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+        <span className="text-[12px] text-[#0D47A1]">In transit · all {supplierCount} suppliers shipped</span>
+        {canMarkReceived && (
+          <button
+            type="button"
+            onClick={onReceive}
+            disabled={acting}
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1B3A2D] text-white rounded-md text-[12px] font-semibold hover:bg-[#142B22] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {acting ? '…' : '✓ Mark received'}
+          </button>
+        )}
+      </div>
+    );
+  }
+  if (shippedCount > 0) {
+    return (
+      <div className="mt-2 text-[12px] text-[#0D47A1]">
+        {shippedCount} of {supplierCount} suppliers shipped
+      </div>
+    );
+  }
+  if (ageDays >= 3) {
+    return (
+      <div className="mt-2 text-[12px] text-[#1B5E20]">
+        ✓ Delivered {ageDays} day{ageDays === 1 ? '' : 's'} ago
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 text-[12px] text-[#6B6B6B]">
+      Arriving by {arrivesBy ? arrivesBy.toLocaleDateString() : '—'}
     </div>
   );
 }
@@ -814,6 +922,7 @@ function OrderDetails({ orderId }) {
   }
 
   const items = data.items ?? [];
+  const events = data.events ?? [];
 
   // group items by supplier so the cook can see who fulfills what
   const groups = items.reduce((acc, it) => {
@@ -829,6 +938,26 @@ function OrderDetails({ orderId }) {
         <div className="flex items-start gap-2 px-3 py-2 bg-[#FAF8F5] border border-[#EBEBEB] rounded-lg">
           <StickyNote className="w-4 h-4 text-[#A8893E] shrink-0 mt-0.5" strokeWidth={1.5} />
           <div className="text-[12px] text-[#6B6B6B]">{data.delivery_notes}</div>
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div className="bg-[#FAF8F5] border border-[#EBEBEB] rounded-lg p-3">
+          <div className="text-[12px] font-semibold text-[#1A1A1A] mb-2">Timeline</div>
+          <ul className="space-y-1">
+            {events.map((e) => (
+              <li key={e.event_id} className="flex items-start gap-2 text-[12px]">
+                <span className="text-[#9E9E9E] shrink-0 w-[110px]">
+                  {new Date(e.occurred_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="text-[#1A1A1A]">
+                  <span className="font-semibold">{eventLabel(e.event_type)}</span>
+                  {e.supplier_name ? ` · ${e.supplier_name}` : ''}
+                  {e.notes ? ` — ${e.notes}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -965,6 +1094,15 @@ function scoreLabel(s) {
 function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
+
+const EVENT_LABELS = {
+  placed:    'Order placed',
+  shipped:   'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  reviewed:  'Reviewed',
+};
+function eventLabel(t) { return EVENT_LABELS[t] ?? capitalize(t); }
 
 function itemsOf(data) {
   if (Array.isArray(data)) return data;

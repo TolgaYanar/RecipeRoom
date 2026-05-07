@@ -57,6 +57,24 @@ router.post('/recipe/:id', requireLogin, async (req, res) => {
       [recipeId, req.user.id, score, comment?.trim() || null]
     );
 
+    // Mirror the review into the order timeline if the cook ordered this
+    // recipe. Best-effort: pick the most recent order for this user/recipe;
+    // skip silently if there's no order to attach to (e.g. they cooked
+    // from their own pantry).
+    const [recentOrder] = await query(
+      `SELECT order_id FROM Orders
+       WHERE creator_id = ? AND recipe_id = ?
+       ORDER BY order_date DESC LIMIT 1`,
+      [req.user.id, recipeId]
+    );
+    if (recentOrder) {
+      await query(
+        `INSERT INTO Order_Events (order_id, supplier_id, event_type, actor_user_id, occurred_at)
+         VALUES (?, NULL, 'reviewed', ?, NOW())`,
+        [recentOrder.order_id, req.user.id]
+      ).catch((e) => console.warn('reviewed event insert failed:', e.message));
+    }
+
     res.status(201).json({ message: 'Review posted' });
   } catch (err) {
     console.error('POST /reviews/recipe/:id error:', err);
