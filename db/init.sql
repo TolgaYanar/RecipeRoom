@@ -53,6 +53,7 @@ CREATE TABLE Verified_Chef(
     user_id INT PRIMARY KEY,
     verification_date DATE NOT NULL,
     royalty_points INT DEFAULT 0,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -62,6 +63,7 @@ CREATE TABLE Local_Supplier(
     address VARCHAR(255) NOT NULL UNIQUE,
     contact_number VARCHAR(255) NOT NULL UNIQUE,
     balance DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 

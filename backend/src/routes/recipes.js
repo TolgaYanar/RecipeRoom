@@ -84,6 +84,30 @@ const recipes = await query(
   params
 );
 
+    // Attach tags so list consumers (admin Recipe Management, browse
+    // page) can render category chips. Recipe_Summary doesn't carry
+    // tag info, so we side-query and merge.
+    if (recipes.length > 0) {
+      const ids = recipes.map((r) => r.recipe_id);
+      const placeholders = ids.map(() => '?').join(',');
+      const tagRows = await query(
+        `SELECT ht.recipe_id, t.tag_name
+         FROM Has_Tag ht
+         JOIN Tag t ON ht.tag_id = t.tag_id
+         WHERE ht.recipe_id IN (${placeholders})`,
+        ids
+      );
+      const byRecipe = new Map();
+      for (const row of tagRows) {
+        if (!byRecipe.has(row.recipe_id)) byRecipe.set(row.recipe_id, []);
+        byRecipe.get(row.recipe_id).push(row.tag_name);
+      }
+      for (const r of recipes) {
+        r.tags = byRecipe.get(r.recipe_id) ?? [];
+        r.category = r.tags[0] ?? null;
+      }
+    }
+
     res.json({
       items: recipes,
       total,

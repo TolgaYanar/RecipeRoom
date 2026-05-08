@@ -97,7 +97,10 @@ res.json({ featured, trending, recommendations, active_challenges });
 
 // Admin endpoints
 
-// List all featured selections (active + past) for admin panel
+// List all featured selections (active + past) for admin panel.
+// Recipes for each selection come back as a `recipes` array on the row
+// so the panel can render the chip list without a second round-trip
+// per row.
 router.get('/admin', requireLogin, requireRole('Administrator'), async (req, res) => {
   try {
     const selections = await query(
@@ -112,6 +115,26 @@ router.get('/admin', requireLogin, requireRole('Administrator'), async (req, res
                 fs.end_date, u.UserName
        ORDER BY fs.start_date DESC`
     );
+
+    if (selections.length > 0) {
+      const ids = selections.map((s) => s.selection_id);
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await query(
+        `SELECT h.selection_id, h.recipe_id, r.title
+         FROM Highlights h
+         JOIN Recipe r ON h.recipe_id = r.recipe_id
+         WHERE h.selection_id IN (${placeholders})`,
+        ids
+      );
+      const grouped = new Map();
+      for (const r of rows) {
+        if (!grouped.has(r.selection_id)) grouped.set(r.selection_id, []);
+        grouped.get(r.selection_id).push({ recipe_id: r.recipe_id, title: r.title });
+      }
+      for (const s of selections) {
+        s.recipes = grouped.get(s.selection_id) ?? [];
+      }
+    }
 
     res.json(selections);
   } catch (err) {
@@ -158,7 +181,7 @@ router.patch('/admin/:id', requireLogin, requireRole('Administrator'), async (re
     const selectionId = parseInt(req.params.id);
     if (isNaN(selectionId)) return res.status(400).json({ error: 'Invalid selection ID' });
 
-    const { selection_type, start_date, end_date } = req.body;
+    const { selection_type, start_date, end_date, recipe_ids } = req.body;
 
     const [existing] = await query(
       'SELECT selection_id FROM Featured_Selection WHERE selection_id = ?',
@@ -173,13 +196,31 @@ router.patch('/admin/:id', requireLogin, requireRole('Administrator'), async (re
     if (start_date)     { setClauses.push('start_date = ?');     params.push(start_date); }
     if (end_date)       { setClauses.push('end_date = ?');       params.push(end_date); }
 
-    if (setClauses.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    const hasMetadata    = setClauses.length > 0;
+    const hasRecipeList  = Array.isArray(recipe_ids);
+    if (!hasMetadata && !hasRecipeList) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
 
-    params.push(selectionId);
-    await query(
-      `UPDATE Featured_Selection SET ${setClauses.join(', ')} WHERE selection_id = ?`,
-      params
-    );
+    if (hasMetadata) {
+      params.push(selectionId);
+      await query(
+        `UPDATE Featured_Selection SET ${setClauses.join(', ')} WHERE selection_id = ?`,
+        params
+      );
+    }
+
+    // Replace the recipe set when an explicit list is provided. Empty
+    // array clears the selection.
+    if (hasRecipeList) {
+      await query('DELETE FROM Highlights WHERE selection_id = ?', [selectionId]);
+      for (const rid of recipe_ids) {
+        await query(
+          'INSERT IGNORE INTO Highlights (selection_id, recipe_id) VALUES (?, ?)',
+          [selectionId, rid]
+        );
+      }
+    }
 
     res.json({ message: 'Featured selection updated' });
   } catch (err) {
