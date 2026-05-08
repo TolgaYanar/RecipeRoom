@@ -41,14 +41,32 @@ router.put('/', requireLogin, async (req, res) => {
     const { items = [] } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
 
-    // Upsert each affinity item
+    // Replace the user's manual affinities with what the client sent —
+    // delete first so rows the user removed on the frontend don't linger,
+    // then re-insert. Auto-inferred rows are scoped out so they survive.
+    await query(
+      'DELETE FROM Has_Affinity WHERE user_id = ? AND is_inferred = FALSE',
+      [userId]
+    );
+
     for (const item of items) {
-      if (!item.ingredient_id || item.score == null) continue;
+      if (item.score == null) continue;
+      // Frontend's hardcoded picker still sends a name string instead of
+      // an id, so resolve it here as a fallback.
+      let ingId = item.ingredient_id;
+      if (!ingId && item.ingredient) {
+        const [row] = await query(
+          'SELECT ingredient_id FROM Ingredient WHERE name = ? LIMIT 1',
+          [item.ingredient]
+        );
+        ingId = row?.ingredient_id;
+      }
+      if (!ingId) continue;
       await query(
         `INSERT INTO Has_Affinity (user_id, ingredient_id, affinity_score, is_inferred)
          VALUES (?, ?, ?, FALSE)
          ON DUPLICATE KEY UPDATE affinity_score = ?, is_inferred = FALSE`,
-        [userId, item.ingredient_id, item.score, item.score]
+        [userId, ingId, item.score, item.score]
       );
     }
 

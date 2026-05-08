@@ -13,24 +13,31 @@ export const getUserRecipes = (id) =>
 export const getUserRoyalties = (id) =>
   client.get(`/users/${id}/royalties`).then(r => r.data);
 
-// Meal_List + Contains_Recipe
-export const getMealLists = (id) =>
-  client.get(`/users/${id}/meal-lists`).then(r => r.data);
+// Meal_List + Contains_Recipe.
+// Pass recipeId to get a `contains_recipe` flag per list — used by the
+// Save-to-list picker to render initial checkbox state.
+export const getMealLists = (id, recipeId) =>
+  client.get(`/users/${id}/meal-lists`, {
+    params: recipeId ? { recipe_id: recipeId } : undefined,
+  }).then(r => r.data);
+
+export const getMealListRecipes = (id, listId) =>
+  client.get(`/users/${id}/meal-lists/${encodeURIComponent(listId)}/recipes`).then(r => r.data);
 
 export const createMealList = (id, data) =>
   client.post(`/users/${id}/meal-lists`, data).then(r => r.data);
 
 export const updateMealList = (id, listId, data) =>
-  client.patch(`/users/${id}/meal-lists/${listId}`, data).then(r => r.data);
+  client.patch(`/users/${id}/meal-lists/${encodeURIComponent(listId)}`, data).then(r => r.data);
 
 export const deleteMealList = (id, listId) =>
-  client.delete(`/users/${id}/meal-lists/${listId}`).then(r => r.data);
+  client.delete(`/users/${id}/meal-lists/${encodeURIComponent(listId)}`).then(r => r.data);
 
 export const addToMealList = (id, listId, data) =>
-  client.post(`/users/${id}/meal-lists/${listId}/recipes`, data).then(r => r.data);
+  client.post(`/users/${id}/meal-lists/${encodeURIComponent(listId)}/recipes`, data).then(r => r.data);
 
 export const removeFromMealList = (id, listId, recipeId) =>
-  client.delete(`/users/${id}/meal-lists/${listId}/recipes/${recipeId}`).then(r => r.data);
+  client.delete(`/users/${id}/meal-lists/${encodeURIComponent(listId)}/recipes/${recipeId}`).then(r => r.data);
 
 // Follow graph + saved recipes
 export const getFollowState = (id) =>

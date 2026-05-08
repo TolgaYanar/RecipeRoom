@@ -15,8 +15,9 @@ router.get('/', async (req, res) => {
 
     const offset = Math.floor((Number(page) - 1) * Number(limit));
 
-    // WHERE conditions are created dynamically
-    const conditions = ['1=1'];
+    // WHERE conditions are created dynamically. Drafts never appear in the
+    // public browse page — owners reach their own drafts through /my.
+    const conditions = [`rs.status = 'published'`];
     const params = [];
 
     if (q) {
@@ -133,6 +134,14 @@ router.get('/:id', optionalAuth, async (req, res) => {
       'SELECT parent_recipe_id, publisher_home_cook_id, publisher_chef_id FROM Recipe WHERE recipe_id = ?',
       [recipeId]
     );
+
+    // Drafts are owner-only — anyone else with the URL gets a 404.
+    if (recipe.status === 'draft') {
+      const ownerId = recipeRow?.publisher_home_cook_id ?? recipeRow?.publisher_chef_id ?? null;
+      if (req.user?.id !== ownerId) {
+        return res.status(404).json({ error: 'Recipe not found' });
+      }
+    }
 
     // Record a unique-viewer entry. Anonymous viewers are skipped (no
     // user_id), and the publisher's own visits don't inflate their stats.

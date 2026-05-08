@@ -7,7 +7,7 @@ import {
   DIET_OPTIONS,
   DIFFICULTY_OPTIONS,
 } from '../constants/tags';
-import { createRecipe, getRecipe } from '../api/recipes';
+import { createRecipe, getRecipe, publishRecipe } from '../api/recipes';
 import { useToast } from '../context/ToastContext';
 import IngredientRow from '../components/IngredientRow';
 import StepRow from '../components/StepRow';
@@ -107,7 +107,7 @@ export default function CreateRecipe() {
     return null;
   };
 
-  const handlePublish = async () => {
+  const submitRecipe = async ({ publish }) => {
     const err = firstError();
     if (err) {
       toast.error(err);
@@ -140,7 +140,9 @@ export default function CreateRecipe() {
         substitutions,
       });
 
-      toast.success('Recipe published');
+      if (publish && recipe?.id) await publishRecipe(recipe.id);
+
+      toast.success(publish ? 'Recipe published' : 'Saved as draft');
       navigate(recipe?.id ? `/recipes/${recipe.id}` : '/profile');
     } catch {
       // already toasted by the interceptor
@@ -148,6 +150,8 @@ export default function CreateRecipe() {
       setSubmitting(false);
     }
   };
+  const handlePublish = () => submitRecipe({ publish: true });
+  const handleSaveDraft = () => submitRecipe({ publish: false });
 
   return (
     <div className="min-h-screen bg-[#FAF8F5]">
@@ -368,6 +372,15 @@ export default function CreateRecipe() {
                 className="w-full mt-2 py-3 bg-[#1B3A2D] text-white rounded-lg text-[14px] font-semibold hover:bg-[#142B22] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Publishing…' : 'Publish Recipe'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={submitting}
+                className="w-full mt-2 py-3 bg-white text-[#1A1A1A] border border-[#D0D0D0] rounded-lg text-[14px] font-semibold hover:border-[#1B3A2D] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {submitting ? 'Saving…' : 'Save as Draft'}
               </button>
 
               <button

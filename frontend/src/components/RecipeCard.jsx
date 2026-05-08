@@ -73,6 +73,11 @@ export default function RecipeCard({ recipe }) {
 
         {/* Top-right: cuisine + difficulty badges */}
         <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+          {recipe.status === 'draft' && (
+            <span className="bg-[#FFF7DC] text-[#8A6E00] text-[11px] font-semibold px-2.5 py-1 rounded-full">
+              Draft
+            </span>
+          )}
           {cuisine && (
             <span className="bg-[rgba(0,0,0,0.55)] text-white text-[11px] font-semibold px-2.5 py-1 rounded-full">
               {cuisine}

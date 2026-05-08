@@ -3,18 +3,19 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Clock, ChefHat, Users, MapPin, Heart,
   MessageCircle, Bookmark, GitBranch, Star, ShoppingCart,
-  Minus, Plus, BadgeCheck, Trash2,
+  Minus, Plus, BadgeCheck, Trash2, ListOrdered,
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import OwnerSubstitutionEditor from '../components/OwnerSubstitutionEditor';
 import StarRating from '../components/StarRating';
 import SubstitutionPicker from '../components/SubstitutionPicker';
+import SaveToListModal from '../components/SaveToListModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { addRecipeToCart } from '../lib/cart';
 import { useToast } from '../context/ToastContext';
 import {
-  getRecipe, getRecipeMedia, deleteRecipe,
+  getRecipe, getRecipeMedia, deleteRecipe, publishRecipe,
   getRecipeLikeState, toggleRecipeLike,
   getRecipeSaveState, toggleRecipeSave,
 } from '../api/recipes';
@@ -45,6 +46,7 @@ export default function RecipeDetail() {
   const [rating,   setRating]   = useState(5);
   const [posting,  setPosting]  = useState(false);
   const [shopOpen, setShopOpen]     = useState(false);
+  const [saveToListOpen, setSaveToListOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
   const [liked,      setLiked]      = useState(false);
@@ -208,6 +210,17 @@ export default function RecipeDetail() {
     navigate(`/create?fork=${id}`);
   };
 
+  const handlePublishDraft = async () => {
+    try {
+      await publishRecipe(Number(id));
+      toast.success('Recipe published');
+      // Reload so the banner disappears and the public-only fields refresh.
+      window.location.reload();
+    } catch {
+      // already toasted by the interceptor
+    }
+  };
+
   const handleCommentLike = async (target) => {
     if (!user) { openAuth(); return; }
     const key = reviewKey(target);
@@ -340,6 +353,12 @@ export default function RecipeDetail() {
             <PrimaryButton onClick={handleFork} icon={<GitBranch className="w-4 h-4" strokeWidth={1.5} />}>
               Fork This Recipe
             </PrimaryButton>
+            <PrimaryButton
+              onClick={() => user ? setSaveToListOpen(true) : openAuth()}
+              icon={<ListOrdered className="w-4 h-4" strokeWidth={1.5} />}
+            >
+              Save to List
+            </PrimaryButton>
             {canDelete && (
               <button
                 type="button"
@@ -352,6 +371,21 @@ export default function RecipeDetail() {
             )}
           </div>
         </div>
+
+        {isOwner && recipe.status === 'draft' && (
+          <div className="mb-6 px-4 py-3 bg-[#FFF7DC] border border-[#F0E2A8] rounded-xl flex items-center justify-between gap-3">
+            <div className="text-[13px] text-[#5A4A1A]">
+              <span className="font-semibold">Draft</span> — only you can see this recipe. Publish to make it visible to everyone.
+            </div>
+            <button
+              type="button"
+              onClick={handlePublishDraft}
+              className="shrink-0 px-3 py-1.5 bg-[#1B3A2D] text-white rounded-md text-[13px] font-semibold hover:bg-[#142B22]"
+            >
+              Publish
+            </button>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
           <IngredientsCard
@@ -389,6 +423,14 @@ export default function RecipeDetail() {
           baseServings={recipe.base_servings ?? servings}
           onClose={() => setShopOpen(false)}
           onConfirm={handleConfirmShop}
+        />
+      )}
+
+      {saveToListOpen && user && (
+        <SaveToListModal
+          userId={user.user_id}
+          recipeId={Number(id)}
+          onClose={() => setSaveToListOpen(false)}
         />
       )}
 

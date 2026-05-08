@@ -1,6 +1,6 @@
 const express = require('express');
 const { query, withTransaction } = require('../utils/db');
-const { requireLogin, requireRole } = require('../middleware/auth');
+const { requireLogin, optionalAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -19,7 +19,11 @@ router.get('/:id', async (req, res) => {
                   WHEN vc.user_id IS NOT NULL THEN 'Verified_Chef'
                   WHEN ls.user_id IS NOT NULL THEN 'Local_Supplier'
                   WHEN hc.user_id IS NOT NULL THEN 'Home_Cook'
-              END AS user_type
+              END AS user_type,
+              (SELECT COUNT(*) FROM Recipe r
+                WHERE r.status = 'published'
+                  AND (r.publisher_home_cook_id = u.user_id
+                       OR r.publisher_chef_id = u.user_id)) AS recipes_count
        FROM User u
        LEFT JOIN Administrator a ON u.user_id = a.user_id
        LEFT JOIN Verified_Chef vc ON u.user_id = vc.user_id
@@ -62,18 +66,22 @@ router.patch('/:id', requireLogin, async (req, res) => {
   }
 });
 
-// GET /api/users/:id/recipes
-router.get('/:id/recipes', async (req, res) => {
+// GET /api/users/:id/recipes — drafts are owner-only.
+router.get('/:id/recipes', optionalAuth, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     if (isNaN(userId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
+    const isOwner = req.user?.id === userId;
+    const statusClause = isOwner ? '' : ` AND status = 'published'`;
+
     const recipes = await query(
-      `SELECT recipe_id, title, description, cooking_time, difficulty, base_servings, parent_recipe_id
+      `SELECT recipe_id, title, description, cooking_time, difficulty,
+              base_servings, parent_recipe_id, status
        FROM Recipe
-       WHERE publisher_home_cook_id = ? OR publisher_chef_id = ?
+       WHERE (publisher_home_cook_id = ? OR publisher_chef_id = ?)${statusClause}
        ORDER BY recipe_id DESC`,
       [userId, userId]
     );
@@ -134,7 +142,10 @@ router.get('/:id/royalties', requireLogin, requireRole('Verified_Chef'), async (
 });
 
 // GET /api/users/:id/meal-lists
-// Meal_List PK is (list_name, user_id) — no auto-increment id
+// Meal_List PK is (list_name, user_id) — no auto-increment id.
+// If ?recipe_id= is provided, each list also carries a contains_recipe
+// boolean so the "Save to list" picker can render checkbox state in one
+// round-trip.
 router.get('/:id/meal-lists', requireLogin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
@@ -142,19 +153,57 @@ router.get('/:id/meal-lists', requireLogin, async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const lists = await query(
-      `SELECT ml.list_name, COUNT(cr.recipe_id) AS recipe_count
-       FROM Meal_List ml
-       LEFT JOIN Contains_Recipe cr ON ml.list_name = cr.list_name AND ml.user_id = cr.user_id
-       WHERE ml.user_id = ?
-       GROUP BY ml.list_name
-       ORDER BY ml.list_name`,
-      [userId]
-    );
+    const recipeId = req.query.recipe_id != null ? parseInt(req.query.recipe_id) : null;
 
+    const sql = recipeId
+      ? `SELECT ml.list_name, COUNT(cr.recipe_id) AS recipe_count,
+                EXISTS (
+                  SELECT 1 FROM Contains_Recipe cr2
+                  WHERE cr2.list_name = ml.list_name
+                    AND cr2.user_id = ml.user_id
+                    AND cr2.recipe_id = ?
+                ) AS contains_recipe
+         FROM Meal_List ml
+         LEFT JOIN Contains_Recipe cr ON ml.list_name = cr.list_name AND ml.user_id = cr.user_id
+         WHERE ml.user_id = ?
+         GROUP BY ml.list_name, ml.user_id
+         ORDER BY ml.list_name`
+      : `SELECT ml.list_name, COUNT(cr.recipe_id) AS recipe_count
+         FROM Meal_List ml
+         LEFT JOIN Contains_Recipe cr ON ml.list_name = cr.list_name AND ml.user_id = cr.user_id
+         WHERE ml.user_id = ?
+         GROUP BY ml.list_name
+         ORDER BY ml.list_name`;
+
+    const lists = await query(sql, recipeId ? [recipeId, userId] : [userId]);
     res.json(lists);
   } catch (err) {
     console.error('Error fetching meal lists:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/users/:id/meal-lists/:listId/recipes — recipes in the list,
+// pulled through Recipe_Summary so cards have thumbnails and ratings.
+router.get('/:id/meal-lists/:listId/recipes', requireLogin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId) || req.user.id !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const listName = req.params.listId;
+
+    const recipes = await query(
+      `SELECT rs.*
+       FROM Contains_Recipe cr
+       JOIN Recipe_Summary rs ON cr.recipe_id = rs.recipe_id
+       WHERE cr.list_name = ? AND cr.user_id = ?
+       ORDER BY rs.title`,
+      [listName, userId]
+    );
+    res.json(recipes);
+  } catch (err) {
+    console.error('Error fetching meal list recipes:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

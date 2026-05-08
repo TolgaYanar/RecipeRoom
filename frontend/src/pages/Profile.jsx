@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import {
   getUser, updateUser, getUserRecipes, getUserRoyalties,
   getMealLists, createMealList, deleteMealList,
+  getMealListRecipes, removeFromMealList,
   getSavedRecipes, getFollowState, getUserBalance,
 } from '../api/users';
 import TopUpModal from '../components/TopUpModal';
@@ -30,10 +31,9 @@ const TABS_BASE = [
 function tabsForRole(role) {
   if (role === 'Verified_Chef') {
     return [
-      { id: 'my-recipes',     label: 'My Recipes'     },
-      { id: 'saved',          label: 'Saved'          },
-      { id: 'flavor-profile', label: 'Flavor Profile' },
-      { id: 'royalties',      label: 'Royalties'      },
+      { id: 'my-recipes', label: 'My Recipes' },
+      { id: 'saved',      label: 'Saved'      },
+      { id: 'royalties',  label: 'Royalties'  },
     ];
   }
   if (role === 'Local_Supplier' || role === 'Administrator') {
@@ -608,6 +608,7 @@ function MealListsTab({ userId }) {
   const [name, setName]       = useState('');
   const [saving, setSaving]   = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [openList, setOpenList] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -636,6 +637,7 @@ function MealListsTab({ userId }) {
   const remove = async (listId) => {
     try {
       await deleteMealList(userId, listId);
+      if (openList === listId) setOpenList(null);
       reload();
     } catch {
       // already toasted by the interceptor
@@ -700,31 +702,111 @@ function MealListsTab({ userId }) {
       ) : lists.length === 0 ? (
         <EmptyState message="No meal lists yet — create one to start collecting recipes." icon="📋" />
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {lists.map((l) => (
-            <li
-              key={l.list_id ?? l.id}
-              className="border border-[#EBEBEB] rounded-xl p-4 flex items-start justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <div className="text-[14px] font-semibold text-[#1A1A1A] truncate">{l.name}</div>
-                <div className="text-[12px] text-[#6B6B6B] mt-0.5">
-                  {l.recipe_count ?? l.recipes?.length ?? 0} recipe{(l.recipe_count ?? l.recipes?.length ?? 0) === 1 ? '' : 's'}
+        <ul className="space-y-3">
+          {lists.map((l) => {
+            const count = Number(l.recipe_count ?? 0);
+            const open  = openList === l.list_name;
+            return (
+              <li key={l.list_name} className="border border-[#EBEBEB] rounded-xl overflow-hidden">
+                <div className="flex items-start justify-between gap-3 p-4">
+                  <button
+                    type="button"
+                    onClick={() => setOpenList(open ? null : l.list_name)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="text-[14px] font-semibold text-[#1A1A1A] truncate flex items-center gap-2">
+                      {open
+                        ? <ChevronUp className="w-4 h-4 text-[#6B6B6B]" />
+                        : <ChevronDown className="w-4 h-4 text-[#6B6B6B]" />}
+                      {l.list_name}
+                    </div>
+                    <div className="text-[12px] text-[#6B6B6B] mt-0.5">
+                      {count} recipe{count === 1 ? '' : 's'}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(l.list_name)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-[#9E9E9E] hover:text-[#B71C1C] hover:bg-[#FFEBEE] transition-colors shrink-0"
+                    aria-label={`Delete ${l.list_name}`}
+                  >
+                    <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                  </button>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(l.list_id ?? l.id)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#9E9E9E] hover:text-[#B71C1C] hover:bg-[#FFEBEE] transition-colors shrink-0"
-                aria-label={`Delete ${l.name}`}
-              >
-                <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-            </li>
-          ))}
+                {open && (
+                  <MealListRecipes
+                    userId={userId}
+                    listName={l.list_name}
+                    onChanged={reload}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
+  );
+}
+
+function MealListRecipes({ userId, listName, onChanged }) {
+  const [recipes, setRecipes] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMealListRecipes(userId, listName)
+      .then((d) => { if (!cancelled) setRecipes(itemsOf(d)); })
+      .catch(()  => { if (!cancelled) setRecipes([]); });
+    return () => { cancelled = true; };
+  }, [userId, listName, reloadKey]);
+
+  const handleRemove = async (recipeId) => {
+    try {
+      await removeFromMealList(userId, listName, recipeId);
+      setReloadKey((k) => k + 1);
+      onChanged?.();
+    } catch {
+      // already toasted by the interceptor
+    }
+  };
+
+  if (recipes === null) {
+    return <div className="px-4 pb-4"><LoadingSpinner size="sm" /></div>;
+  }
+  if (recipes.length === 0) {
+    return (
+      <div className="px-4 pb-4 text-[13px] text-[#9E9E9E]">
+        No recipes in this list yet — open a recipe and use “Save to list” to add one.
+      </div>
+    );
+  }
+  return (
+    <ul className="px-4 pb-4 space-y-2 border-t border-[#EBEBEB] pt-3">
+      {recipes.map((r) => (
+        <li key={r.recipe_id} className="flex items-center gap-3">
+          <a
+            href={`/recipes/${r.recipe_id}`}
+            className="flex items-center gap-3 flex-1 min-w-0 hover:underline"
+          >
+            {r.thumbnail_url
+              ? <img src={r.thumbnail_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+              : <div className="w-12 h-12 rounded-md bg-[#FAF8F5] border border-[#EBEBEB]" />}
+            <div className="min-w-0">
+              <div className="text-[13px] font-semibold text-[#1A1A1A] truncate">{r.title}</div>
+              <div className="text-[11px] text-[#9E9E9E] truncate">{r.publisher_name ?? ''}</div>
+            </div>
+          </a>
+          <button
+            type="button"
+            onClick={() => handleRemove(r.recipe_id)}
+            className="text-[12px] text-[#B71C1C] font-semibold hover:underline shrink-0"
+          >
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
