@@ -75,14 +75,17 @@ router.get('/:id/recipes', optionalAuth, async (req, res) => {
     }
 
     const isOwner = req.user?.id === userId;
-    const statusClause = isOwner ? '' : ` AND status = 'published'`;
+    const statusClause = isOwner ? '' : ` AND rs.status = 'published'`;
 
+    // Recipe_Summary carries the thumbnail_url + publisher_name + ratings
+    // that RecipeCard needs; raw Recipe rows would render as image-less
+    // cards on the profile page.
     const recipes = await query(
-      `SELECT recipe_id, title, description, cooking_time, difficulty,
-              base_servings, parent_recipe_id, status
-       FROM Recipe
-       WHERE (publisher_home_cook_id = ? OR publisher_chef_id = ?)${statusClause}
-       ORDER BY recipe_id DESC`,
+      `SELECT rs.*
+       FROM Recipe_Summary rs
+       JOIN Recipe r ON rs.recipe_id = r.recipe_id
+       WHERE (r.publisher_home_cook_id = ? OR r.publisher_chef_id = ?)${statusClause}
+       ORDER BY rs.recipe_id DESC`,
       [userId, userId]
     );
 
