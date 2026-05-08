@@ -60,6 +60,7 @@ export default function AdminPanel() {
             users={users ?? []}
             pendingChefs={pendingChefs ?? []}
             pendingSuppliers={pendingSuppliers ?? []}
+            onReviewVerifications={() => setTab('verifications')}
           />
         )}
         {tab === 'users'         && <UserManagementTab users={users} />}
@@ -134,7 +135,7 @@ function Tabs({ value, onChange, pendingCount }) {
   );
 }
 
-function OverviewTab({ users, pendingChefs, pendingSuppliers }) {
+function OverviewTab({ users, pendingChefs, pendingSuppliers, onReviewVerifications }) {
   const [recipeMeta, setRecipeMeta] = useState(null);
 
   useEffect(() => {
@@ -172,6 +173,7 @@ function OverviewTab({ users, pendingChefs, pendingSuppliers }) {
               </p>
               <button
                 type="button"
+                onClick={onReviewVerifications}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[#F5C518] text-[#1A1A1A] rounded-lg text-[13px] font-semibold hover:bg-[#E0B515]"
               >
                 Review Verifications
@@ -434,7 +436,9 @@ function RecipeManagementTab() {
   }, []);
 
   const moveTo = async (recipeId, highlightId) => {
-    const target = highlights.find((h) => (h.id ?? h.highlight_id) === highlightId);
+    const target = highlights.find((h) =>
+      (h.selection_id ?? h.id ?? h.highlight_id) === highlightId
+    );
     if (!target) return;
     // append the recipe id, dropping any existing entry to avoid duplicates
     const recipeIds = (target.recipe_ids ?? target.recipes?.map((r) => r.recipe_id ?? r.id) ?? [])
@@ -536,11 +540,14 @@ function RecipeRow({ recipe: r, highlights, onMoveTo }) {
           className="text-[13px] border border-[#D0D0D0] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-[#1B3A2D]"
         >
           <option value="">Move to…</option>
-          {highlights.map((h) => (
-            <option key={h.id ?? h.highlight_id} value={h.id ?? h.highlight_id}>
-              {h.title ?? h.name}
-            </option>
-          ))}
+          {highlights.map((h) => {
+            const hid = h.selection_id ?? h.id ?? h.highlight_id;
+            return (
+              <option key={hid} value={hid}>
+                {h.selection_type ?? h.title ?? h.name}
+              </option>
+            );
+          })}
         </select>
       </td>
     </tr>
@@ -621,7 +628,7 @@ function FeaturedSelectionsTab() {
       ) : (
         <ul className="space-y-3">
           {highlights.map((h) => (
-            <HighlightRow key={h.id ?? h.highlight_id} highlight={h} onDelete={remove} />
+            <HighlightRow key={h.selection_id ?? h.id ?? h.highlight_id} highlight={h} onDelete={remove} />
           ))}
         </ul>
       )}
@@ -630,7 +637,7 @@ function FeaturedSelectionsTab() {
 }
 
 function HighlightRow({ highlight: h, onDelete }) {
-  const id = h.id ?? h.highlight_id;
+  const id = h.selection_id ?? h.id ?? h.highlight_id;
   const recipes = h.recipes ?? [];
   const active  = h.active ?? h.is_active;
 
@@ -639,7 +646,7 @@ function HighlightRow({ highlight: h, onDelete }) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h4 className="text-[15px] font-bold text-[#1A1A1A]">{h.title ?? h.name}</h4>
+            <h4 className="text-[15px] font-bold text-[#1A1A1A]">{h.selection_type ?? h.title ?? h.name}</h4>
             <span
               className={
                 'px-2 py-0.5 rounded-md text-[11px] font-semibold ' +
@@ -697,10 +704,10 @@ function NewSelectionForm({ recipes, onCancel, onCreated }) {
     setSaving(true);
     try {
       await createAdminHighlight({
-        title:      title.trim(),
-        start_date: start,
-        end_date:   end,
-        recipe_ids: picked,
+        selection_type: title.trim(),
+        start_date:     start,
+        end_date:       end,
+        recipe_ids:     picked,
       });
       toast.success('Selection created');
       onCreated();

@@ -7,9 +7,7 @@ const router = express.Router();
 // All routes require a valid login AND Administrator role
 router.use(requireLogin, requireRole('Administrator'));
 
-// GET /api/admin/pending-chefs
-// Schema has no pending state — all registered chefs are in Verified_Chef.
-// Returns all chefs so the admin panel can manage them.
+// GET /api/admin/pending-chefs — chefs awaiting verification.
 router.get('/pending-chefs', async (req, res) => {
   try {
     const chefs = await query(
@@ -17,6 +15,7 @@ router.get('/pending-chefs', async (req, res) => {
               vc.verification_date, vc.royalty_points
        FROM Verified_Chef vc
        JOIN User u ON vc.user_id = u.user_id
+       WHERE vc.is_verified = FALSE
        ORDER BY u.join_date ASC`
     );
 
@@ -27,8 +26,8 @@ router.get('/pending-chefs', async (req, res) => {
   }
 });
 
-// POST /api/admin/chefs/:id/approve
-// Chef is already in Verified_Chef on registration — no state to flip.
+// POST /api/admin/chefs/:id/approve — flip is_verified so the chef
+// drops out of the pending list.
 router.post('/chefs/:id/approve', async (req, res) => {
   try {
     const chefId = parseInt(req.params.id);
@@ -36,8 +35,11 @@ router.post('/chefs/:id/approve', async (req, res) => {
       return res.status(400).json({ error: 'Invalid chef ID' });
     }
 
-    const [chef] = await query('SELECT user_id FROM Verified_Chef WHERE user_id = ?', [chefId]);
-    if (!chef) {
+    const result = await query(
+      'UPDATE Verified_Chef SET is_verified = TRUE WHERE user_id = ?',
+      [chefId]
+    );
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Chef not found' });
     }
 
@@ -289,7 +291,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// GET /api/admin/pending-suppliers — mirrors /pending-chefs
+// GET /api/admin/pending-suppliers — suppliers awaiting verification.
 router.get('/pending-suppliers', async (req, res) => {
   try {
     const suppliers = await query(
@@ -297,6 +299,7 @@ router.get('/pending-suppliers', async (req, res) => {
               ls.business_name, ls.address, ls.contact_number
        FROM Local_Supplier ls
        JOIN User u ON ls.user_id = u.user_id
+       WHERE ls.is_verified = FALSE
        ORDER BY u.join_date ASC`
     );
 
@@ -307,7 +310,7 @@ router.get('/pending-suppliers', async (req, res) => {
   }
 });
 
-// POST /api/admin/suppliers/:id/approve — no-op (already in Local_Supplier)
+// POST /api/admin/suppliers/:id/approve — flip is_verified.
 router.post('/suppliers/:id/approve', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.id);
@@ -315,11 +318,11 @@ router.post('/suppliers/:id/approve', async (req, res) => {
       return res.status(400).json({ error: 'Invalid supplier ID' });
     }
 
-    const [supplier] = await query(
-      'SELECT user_id FROM Local_Supplier WHERE user_id = ?',
+    const result = await query(
+      'UPDATE Local_Supplier SET is_verified = TRUE WHERE user_id = ?',
       [supplierId]
     );
-    if (!supplier) {
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
