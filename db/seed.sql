@@ -41,16 +41,17 @@ INSERT INTO Badge (name, description, icon_url) VALUES
 ('Healthy Eater', 'Earned for cooking nutritious meals consistently', 'https://example.com/icons/healthy-eater.png'),
 ('Frequent Cooker', 'Awarded for cooking many recipes', 'https://example.com/icons/frequent-cooker.png');
 
--- Users
+-- Users — every seeded account uses the password "password1"
+-- (one shared bcrypt hash so logins work the same across roles after a reset).
 INSERT INTO User (UserName, Email, passwordHash, join_date) VALUES
 ('alice_hc', 'alice@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
-('bob_hc', 'bob@example.com', '$2b$10$zoqzZS.oVnRdRoaGpY.nL..yERSIGz0M7Ad6oQaXssy8XlnDsuCVi', NOW()),
-('carla_hc', 'carla@example.com', '$2b$10$KDpqsFAARshJKUEgr.QJYOLGbBvGHqX/GZGWhoohSqDOze2AkHAEq', NOW()),
-('chef_marco', 'marco@example.com', '$2b$10$puAY1VqPhz9eRzei9JxYWe/zFAW6MI9GEG.cy2Qq7lo0aP2yxweOW', NOW()),
-('chef_aisha', 'aisha@example.com', '$2b$10$ql7C7khBHtyMakGxJJpYw.S0GhWwTcRZIu1.2By.A4TlIRCC..Pc.', NOW()),
-('green_farm', 'greenfarm@example.com', '$2b$10$cLBM18uzp5L8Eh9zXJb2UOC7dO.As8XCJYTvmD2hg9YXvrafgHw/O', NOW()),
-('spice_supply', 'spicesupply@example.com', '$2b$10$7CdLJ1.RanAaMPxBXh5jOeCBc14Cd2KTgPl9bAhHmmN02IKmKXhPq', NOW()),
-('admin_sam', 'admin@example.com', '$2b$10$spGfhwzOr2om5KBcUcuBb.RQp04iO.JlJ1J6lxcm8Io8tSeNdogFW', NOW());
+('bob_hc', 'bob@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('carla_hc', 'carla@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('chef_marco', 'marco@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('chef_aisha', 'aisha@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('green_farm', 'greenfarm@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('spice_supply', 'spicesupply@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW()),
+('admin_sam', 'admin@example.com', '$2b$10$CTyEsznG/ZPOyhyVry7b.OZlghe4Csv8EAzGbBT6YLFM.UgQWWp3a', NOW());
 
 -- User subtypes
 INSERT INTO Home_Cook (user_id, balances, target_daily_calories, primary_diet_goal) VALUES
@@ -58,13 +59,13 @@ INSERT INTO Home_Cook (user_id, balances, target_daily_calories, primary_diet_go
 (2, 80, 1800, 'Energy boost'),
 (3, 200, 2000, 'Balanced diet');
 
-INSERT INTO Verified_Chef (user_id, verification_date, royalty_points) VALUES
-(4, '2026-01-10', 0),
-(5, '2026-02-15', 0);
+INSERT INTO Verified_Chef (user_id, verification_date, royalty_points, is_verified) VALUES
+(4, '2026-01-10', 0, TRUE),
+(5, '2026-02-15', 0, TRUE);
 
-INSERT INTO Local_Supplier (user_id, business_name, address, contact_number) VALUES
-(6, 'Green Farm Supplies', '123 Garden Ave', '+90-555-0101'),
-(7, 'Spice Supply Co.', '45 Market St', '+90-555-0202');
+INSERT INTO Local_Supplier (user_id, business_name, address, contact_number, is_verified) VALUES
+(6, 'Green Farm Supplies', '123 Garden Ave', '+90-555-0101', TRUE),
+(7, 'Spice Supply Co.', '45 Market St', '+90-555-0202', TRUE);
 
 INSERT INTO Administrator (user_id, admin_level) VALUES
 (8, 'super');
