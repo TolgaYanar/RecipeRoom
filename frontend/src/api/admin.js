@@ -31,6 +31,18 @@ export const moderateContent = (type, id, data) =>
 export const getAdminUsers = () =>
   client.get('/admin/users').then(r => r.data);
 
+export const deleteAdminUser = (id) =>
+  client.delete(`/admin/users/${id}`).then(r => r.data);
+
+export const promoteUserToChef = (id) =>
+  client.post(`/admin/users/${id}/promote-chef`).then(r => r.data);
+
+export const demoteUserFromChef = (id) =>
+  client.post(`/admin/users/${id}/demote-chef`).then(r => r.data);
+
+export const resetUserPassword = (id, newPassword) =>
+  client.post(`/admin/users/${id}/reset-password`, { new_password: newPassword }).then(r => r.data);
+
 export const getPendingSuppliers = () =>
   client.get('/admin/pending-suppliers').then(r => r.data);
 

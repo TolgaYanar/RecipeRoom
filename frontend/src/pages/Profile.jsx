@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Settings, MapPin, Sparkles, Plus, Trash2, Info, X, Package, ListOrdered, ChevronDown, ChevronUp, StickyNote } from 'lucide-react';
+import { Settings, MapPin, Sparkles, Plus, Trash2, Info, X, Package, ListOrdered, ChevronDown, ChevronUp, StickyNote, BadgeCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import RecipeCard from '../components/RecipeCard';
 import EmptyState from '../components/EmptyState';
@@ -117,6 +117,9 @@ export default function Profile() {
           handle={handle}
           location={profile?.location || ''}
           bio={profile?.bio || ''}
+          userType={profile?.user_type}
+          isVerifiedChef={!!profile?.is_verified_chef}
+          isVerifiedSupplier={!!profile?.is_verified_supplier}
           recipes={profile?.recipes_count ?? 0}
           followers={follows.followers}
           following={follows.following}
@@ -169,7 +172,9 @@ function deriveHandle(name) {
   return (name || '').toLowerCase().replace(/\s+/g, '_');
 }
 
-function ProfileHeader({ name, handle, location, bio, recipes, followers, following, balance, onTopUp, onEdit }) {
+function ProfileHeader({ name, handle, location, bio, userType, isVerifiedChef, isVerifiedSupplier, recipes, followers, following, balance, onTopUp, onEdit }) {
+  const showChefBadge     = userType === 'Verified_Chef'  && isVerifiedChef;
+  const showSupplierBadge = userType === 'Local_Supplier' && isVerifiedSupplier;
   return (
     <div className="bg-white border border-[#EBEBEB] rounded-2xl p-6 flex items-start gap-6">
       <img
@@ -180,7 +185,21 @@ function ProfileHeader({ name, handle, location, bio, recipes, followers, follow
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-4 mb-1">
-          <h1 className="text-[26px] font-bold text-[#1A1A1A]">{name}</h1>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <h1 className="text-[26px] font-bold text-[#1A1A1A] truncate">{name}</h1>
+            {showChefBadge && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFF7DC] text-[#8A6E00] text-[12px] font-semibold">
+                <BadgeCheck className="w-3.5 h-3.5" strokeWidth={2} />
+                Verified Chef
+              </span>
+            )}
+            {showSupplierBadge && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E8F1EC] text-[#1B5E20] text-[12px] font-semibold">
+                <BadgeCheck className="w-3.5 h-3.5" strokeWidth={2} />
+                Verified Supplier
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onEdit}
