@@ -55,6 +55,9 @@ export const updateAdminHighlight = (id, data) =>
 export const deleteAdminHighlight = (id) =>
   client.delete(`/admin/highlights/${id}`).then(r => r.data);
 
+export const getAdminActivity = () =>
+  client.get('/admin/activity').then(r => r.data);
+
 function normalizeHighlight(h) {
   if (!h) return h;
   return {
