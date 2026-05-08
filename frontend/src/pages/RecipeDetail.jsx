@@ -56,7 +56,7 @@ export default function RecipeDetail() {
     getRecipe(id)
       .then((r) => {
         setRecipe(r);
-        if (r?.servings) setServings(r.servings);
+        if (r?.base_servings) setServings(r.base_servings);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -195,7 +195,7 @@ export default function RecipeDetail() {
       image_url:     recipe.thumbnail_url ?? recipe.image_url ?? null,
       cuisine:       recipe.cuisine ?? null,
       difficulty:    recipe.difficulty ?? null,
-      base_servings: recipe.servings ?? servings,
+      base_servings: recipe.base_servings ?? servings,
       servings,
       ingredients: pickedItems,
     });
@@ -357,6 +357,8 @@ export default function RecipeDetail() {
           <IngredientsCard
             ingredients={ingredients}
             substitutions={substitutions}
+            servings={servings}
+            baseServings={recipe.base_servings ?? servings}
             onAddToCart={handleAddToCart}
           />
           <InstructionsCard steps={steps} />
@@ -384,7 +386,7 @@ export default function RecipeDetail() {
         <SubstitutionPicker
           recipe={recipe}
           servings={servings}
-          baseServings={recipe.servings ?? servings}
+          baseServings={recipe.base_servings ?? servings}
           onClose={() => setShopOpen(false)}
           onConfirm={handleConfirmShop}
         />
@@ -544,7 +546,9 @@ function StepperButton({ onClick, children }) {
   );
 }
 
-function IngredientsCard({ ingredients, substitutions, onAddToCart }) {
+function IngredientsCard({ ingredients, substitutions, servings, baseServings, onAddToCart }) {
+  const ratio = (Number(servings) || Number(baseServings) || 1) / (Number(baseServings) || 1);
+
   return (
     <section className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
@@ -562,7 +566,7 @@ function IngredientsCard({ ingredients, substitutions, onAddToCart }) {
           {ingredients.map((ing, i) => (
             <li key={i} className="flex items-start gap-2.5 text-[14px] text-[#1A1A1A]">
               <span className="w-1.5 h-1.5 mt-2 rounded-full bg-[#1B3A2D] shrink-0" />
-              <span>{formatIngredient(ing)}</span>
+              <span>{formatIngredient(ing, ratio)}</span>
             </li>
           ))}
         </ul>
@@ -758,9 +762,16 @@ function PrimaryButton({ onClick, icon, children }) {
 }
 
 // Backend may return a flat string or { quantity, unit, name } — handle both.
-function formatIngredient(i) {
+// `ratio` scales the displayed quantity to the buyer's chosen servings;
+// flat-string ingredients can't scale (no quantity to multiply).
+function formatIngredient(i, ratio = 1) {
   if (typeof i === 'string') return i;
-  return [i.quantity, i.unit, i.name].filter(Boolean).join(' ');
+  const q = Number(i.quantity);
+  const scaled = Number.isFinite(q) ? q * ratio : i.quantity;
+  const qStr = Number.isFinite(scaled)
+    ? (Number.isInteger(scaled) ? `${scaled}` : scaled.toFixed(2).replace(/\.?0+$/, ''))
+    : i.quantity;
+  return [qStr, i.unit, i.name].filter(Boolean).join(' ');
 }
 
 function capitalize(s) {

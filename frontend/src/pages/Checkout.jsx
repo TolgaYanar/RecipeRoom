@@ -117,6 +117,7 @@ export default function Checkout() {
           items,
           delivery_address: address.trim(),
           delivery_notes:   notes.trim() || null,
+          payment_method:   payment,
         });
       }
 

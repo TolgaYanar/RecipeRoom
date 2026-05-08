@@ -28,7 +28,8 @@ const DELIVERY_FEE_PER_SUPPLIER = 2.49;
 // Challenge score: +1 per qualifying purchase.
 // ─────────────────────────────────────────────
 router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
-  const { recipe_id, scaled_serving, total_price, items, delivery_address, delivery_notes } = req.body;
+  const { recipe_id, scaled_serving, total_price, items, delivery_address, delivery_notes, payment_method } = req.body;
+  const payByCard = payment_method === 'card';
 
   if (!recipe_id || !scaled_serving || !total_price || !Array.isArray(items) || items.length === 0 || !delivery_address) {
     return res.status(400).json({
@@ -66,12 +67,18 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
 
     const orderId = await withTransaction(async (conn) => {
       const grandTotal = Number(total_price) + deliveryFee;
-      const [[cook]] = await conn.execute(
-        'SELECT balances FROM Home_Cook WHERE user_id = ? FOR UPDATE',
-        [req.user.id]
-      );
-      if (Number(cook.balances) < grandTotal) {
-        throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${grandTotal}`);
+
+      // Card payments are accepted as cleared without touching the wallet —
+      // there's no real payment processor in scope, so it's a placebo path.
+      // Wallet payments still need a balance check + debit.
+      if (!payByCard) {
+        const [[cook]] = await conn.execute(
+          'SELECT balances FROM Home_Cook WHERE user_id = ? FOR UPDATE',
+          [req.user.id]
+        );
+        if (Number(cook.balances) < grandTotal) {
+          throw new Error(`Insufficient balance. Available: ${cook.balances}, Required: ${grandTotal}`);
+        }
       }
 
       // Recipe's expected unit per ingredient — purchased_quantity from the
@@ -157,10 +164,12 @@ router.post('/', requireLogin, requireRole('Home_Cook'), async (req, res) => {
         );
       }
 
-      await conn.execute(
-        'UPDATE Home_Cook SET balances = balances - ? WHERE user_id = ?',
-        [Number(total_price) + deliveryFee, req.user.id]
-      );
+      if (!payByCard) {
+        await conn.execute(
+          'UPDATE Home_Cook SET balances = balances - ? WHERE user_id = ?',
+          [Number(total_price) + deliveryFee, req.user.id]
+        );
+      }
 
       // Anchor the lifecycle log with a placement event. Subsequent
       // events (cancel, ship, etc.) reference this same order.
@@ -319,17 +328,25 @@ router.get('/:id', requireLogin, async (req, res) => {
 
       // Suppliers only see their own line items + their own slice of the total.
       // The cook (creator) sees the full order.
+      // purchased_quantity is in the recipe's unit, so we surface req.unit
+      // when the line maps to a recipe-required ingredient and fall back
+      // to Stocks.unit only for substitute ingredients (no Requires row).
       const itemsSql =
         `SELECT fi.ingredient_id, i.name AS ingredient_name,
                 fi.supplier_id, ls.business_name AS supplier_name,
-                fi.purchased_quantity, fi.subtotal, s.unit
+                fi.purchased_quantity, fi.subtotal,
+                COALESCE(req.unit, s.unit) AS unit
          FROM Fulfills_Item fi
          JOIN Ingredient i ON fi.ingredient_id = i.ingredient_id
          JOIN Local_Supplier ls ON fi.supplier_id = ls.user_id
          LEFT JOIN Stocks s ON fi.supplier_id = s.supplier_id AND fi.ingredient_id = s.ingredient_id
+         LEFT JOIN Requires req ON req.recipe_id = ? AND req.ingredient_id = fi.ingredient_id
          WHERE fi.order_id = ?` + (isCreator ? '' : ' AND fi.supplier_id = ?');
 
-      const items = await query(itemsSql, isCreator ? [orderId] : [orderId, req.user.id]);
+      const items = await query(
+        itemsSql,
+        isCreator ? [order.recipe_id, orderId] : [order.recipe_id, orderId, req.user.id]
+      );
 
       // Lifecycle events. Suppliers only see events scoped to them or
       // to the order as a whole (no supplier_id) — keeps other suppliers'
