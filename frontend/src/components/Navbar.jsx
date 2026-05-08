@@ -28,7 +28,7 @@ export default function Navbar() {
 
   const isSupplier = user?.user_type === 'Local_Supplier';
   const isAdmin = user?.user_type === 'Administrator';
-  const navLinks = isSupplier ? supplierNav : regularNav;
+  const navLinks = isSupplier ? supplierNav : isAdmin ? regularNav.filter(l => l.path !== '/create') : regularNav;
   const cart = useCart();
   const cartCount = cart.recipes.length;
 

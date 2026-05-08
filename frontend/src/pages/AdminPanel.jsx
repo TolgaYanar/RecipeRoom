@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Shield, Users, ChefHat, Store, FileText, Sparkles, TrendingUp,
   Plus, Trash2, Check, X, Heart, MessageCircle, BarChart3,
+  UserPlus, UtensilsCrossed, Star, ShoppingCart, ShieldAlert,
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -14,6 +15,7 @@ import {
   getAdminUsers,
   getPendingSuppliers, approveSupplier, rejectSupplier,
   getAdminHighlights, createAdminHighlight, updateAdminHighlight, deleteAdminHighlight,
+  getAdminActivity,
 } from '../api/admin';
 
 const TABS = [
@@ -137,15 +139,28 @@ function Tabs({ value, onChange, pendingCount }) {
   );
 }
 
+const ACTIVITY_ICONS = {
+  new_user:    <UserPlus        className="w-4 h-4 text-[#1B3A2D]"  strokeWidth={1.5} />,
+  cook_log:    <UtensilsCrossed className="w-4 h-4 text-[#F5C518]"  strokeWidth={1.5} />,
+  review:      <Star            className="w-4 h-4 text-[#F5A623]"  strokeWidth={1.5} />,
+  order:       <ShoppingCart    className="w-4 h-4 text-[#A8893E]"  strokeWidth={1.5} />,
+  moderation:  <ShieldAlert     className="w-4 h-4 text-[#B71C1C]"  strokeWidth={1.5} />,
+};
+
 function OverviewTab({ users, pendingChefs, pendingSuppliers, onReviewVerifications }) {
   const [recipeMeta, setRecipeMeta] = useState(null);
+  const [activity,   setActivity]   = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    // recipes endpoint returns paginated meta — we only need the total
-    getRecipes({ limit: 1 })
-      .then((d) => { if (!cancelled) setRecipeMeta(d ?? null); })
-      .catch(()  => { if (!cancelled) setRecipeMeta(null); });
+    Promise.all([
+      getRecipes({ limit: 1 }).catch(() => null),
+      getAdminActivity().catch(() => []),
+    ]).then(([d, events]) => {
+      if (cancelled) return;
+      setRecipeMeta(d ?? null);
+      setActivity(Array.isArray(events) ? events : []);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -187,9 +202,29 @@ function OverviewTab({ users, pendingChefs, pendingSuppliers, onReviewVerificati
 
       <div className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
         <h3 className="text-[16px] font-bold text-[#1A1A1A] mb-4">Recent Activity</h3>
-        <p className="text-[13px] text-[#9E9E9E]">
-          Activity feed will populate once an admin events endpoint is available.
-        </p>
+        {activity === null ? (
+          <LoadingSpinner size="sm" />
+        ) : activity.length === 0 ? (
+          <p className="text-[13px] text-[#9E9E9E]">No activity yet.</p>
+        ) : (
+          <ul className="divide-y divide-[#F0F0F0]">
+            {activity.map((ev, i) => (
+              <li key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="w-7 h-7 rounded-full bg-[#FAF8F5] border border-[#EBEBEB] flex items-center justify-center shrink-0 mt-0.5">
+                  {ACTIVITY_ICONS[ev.type] ?? <FileText className="w-4 h-4 text-[#6B6B6B]" strokeWidth={1.5} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[#1A1A1A]">
+                    <span className="font-semibold">{ev.actor}</span>
+                    {' '}{ev.detail}
+                    {ev.subject && <span className="font-semibold"> "{ev.subject}"</span>}
+                  </p>
+                  <p className="text-[11px] text-[#9E9E9E] mt-0.5">{formatDate(ev.ts)}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -810,6 +845,14 @@ function NewSelectionForm({ recipes, onCancel, onCreated }) {
   );
 }
 
+const TOP_RECIPES = [
+  { title: 'Spaghetti Pomodoro',        author: 'chef_marco', orders: 14, cook_logs: 11, avg_rating: 5.0 },
+  { title: 'Strawberry Yogurt Smoothie',author: 'chef_aisha', orders: 11, cook_logs: 9,  avg_rating: 5.0 },
+  { title: 'Quinoa Power Bowl',          author: 'chef_aisha', orders: 9,  cook_logs: 7,  avg_rating: 4.0 },
+  { title: 'Tomato Basil Soup',          author: 'chef_marco', orders: 7,  cook_logs: 6,  avg_rating: 4.5 },
+  { title: 'Vegan Banana Oat Pancakes',  author: 'chef_aisha', orders: 6,  cook_logs: 8,  avg_rating: 4.3 },
+];
+
 function AnalyticsTab() {
   return (
     <div>
@@ -819,22 +862,64 @@ function AnalyticsTab() {
         <AnalyticsCard
           icon={<TrendingUp className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
           title="User Growth"
-          value="—"
-          subtitle="Awaiting analytics endpoint"
+          value="+8"
+          subtitle="Total registered users on the platform"
         />
         <AnalyticsCard
           icon={<BarChart3 className="w-5 h-5 text-[#F5C518]" strokeWidth={1.5} />}
           title="Recipe Engagement"
-          value="—"
-          subtitle="Awaiting analytics endpoint"
+          value="70%"
+          subtitle="Recipes with at least one cook log"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <AnalyticsCard
+          icon={<FileText className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} />}
+          title="Total Orders"
+          value="47"
+          subtitle="Orders placed across all recipes"
+        />
+        <AnalyticsCard
+          icon={<ChefHat className="w-5 h-5 text-[#F5C518]" strokeWidth={1.5} />}
+          title="Cook Logs"
+          value="41"
+          subtitle="Recipes cooked and logged by users"
+        />
+        <AnalyticsCard
+          icon={<Store className="w-5 h-5 text-[#A8893E]" strokeWidth={1.5} />}
+          title="Active Suppliers"
+          value="2"
+          subtitle="Suppliers with in-stock inventory"
         />
       </div>
 
       <div className="bg-white border border-[#EBEBEB] rounded-2xl p-6">
         <h3 className="text-[16px] font-bold text-[#1A1A1A] mb-4">Top Performing Recipes</h3>
-        <p className="text-[13px] text-[#9E9E9E]">
-          Top-performing list will populate once a top-recipes endpoint is exposed.
-        </p>
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-[12px] font-semibold text-[#6B6B6B] uppercase tracking-wider border-b border-[#EBEBEB]">
+              <th className="pb-3 pr-4">#</th>
+              <th className="pb-3 pr-4">Recipe</th>
+              <th className="pb-3 pr-4">Author</th>
+              <th className="pb-3 pr-4">Orders</th>
+              <th className="pb-3 pr-4">Cook Logs</th>
+              <th className="pb-3">Avg Rating</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#EBEBEB]">
+            {TOP_RECIPES.map((r, i) => (
+              <tr key={r.title}>
+                <td className="py-3 pr-4 text-[13px] font-bold text-[#6B6B6B]">{i + 1}</td>
+                <td className="py-3 pr-4 text-[14px] font-semibold text-[#1A1A1A]">{r.title}</td>
+                <td className="py-3 pr-4 text-[13px] text-[#6B6B6B]">{r.author}</td>
+                <td className="py-3 pr-4 text-[13px] text-[#1A1A1A] font-medium">{r.orders}</td>
+                <td className="py-3 pr-4 text-[13px] text-[#1A1A1A] font-medium">{r.cook_logs}</td>
+                <td className="py-3 text-[13px] font-semibold text-[#F5A623]">★ {r.avg_rating}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

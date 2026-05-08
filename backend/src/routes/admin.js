@@ -364,6 +364,62 @@ router.post('/suppliers/:id/reject', async (req, res) => {
   }
 });
 
+// GET /api/admin/activity — recent platform events, newest first
+router.get('/activity', async (req, res) => {
+  try {
+    const events = await query(
+      `(SELECT 'new_user'  AS type,
+               u.UserName  AS actor,
+               'joined the platform' AS detail,
+               NULL        AS subject,
+               u.join_date AS ts
+        FROM User u)
+       UNION ALL
+       (SELECT 'cook_log',
+               u.UserName,
+               'cooked',
+               r.title,
+               CAST(lc.date_cook AS DATETIME)
+        FROM Logs_Cook lc
+        JOIN User   u ON lc.user_id   = u.user_id
+        JOIN Recipe r ON lc.recipe_id = r.recipe_id)
+       UNION ALL
+       (SELECT 'review',
+               u.UserName,
+               'reviewed',
+               r.title,
+               rr.timestamp
+        FROM Rates_Review rr
+        JOIN User   u ON rr.user_id   = u.user_id
+        JOIN Recipe r ON rr.recipe_id = r.recipe_id)
+       UNION ALL
+       (SELECT 'order',
+               u.UserName,
+               'placed an order for',
+               r.title,
+               o.order_date
+        FROM Orders o
+        JOIN User   u ON o.creator_id = u.user_id
+        JOIN Recipe r ON o.recipe_id  = r.recipe_id)
+       UNION ALL
+       (SELECT 'moderation',
+               u.UserName,
+               CONCAT('moderated (', m.action, ')'),
+               r.title,
+               m.moderation_date
+        FROM Moderates m
+        JOIN User   u ON m.user_id   = u.user_id
+        JOIN Recipe r ON m.recipe_id = r.recipe_id)
+       ORDER BY ts DESC
+       LIMIT 20`
+    );
+    res.json(events);
+  } catch (err) {
+    console.error('Error fetching activity:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delegate admin highlight CRUD to highlights router
 const highlightsRouter = require('./highlights');
 // DELETE /api/admin/users/:id
