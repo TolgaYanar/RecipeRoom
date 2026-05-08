@@ -867,7 +867,11 @@ function OrderRow({ order: o, onChange }) {
   const supplierCount  = Number(o.supplier_count ?? 0);
   const deliveredAt    = o.delivered_at ? new Date(o.delivered_at) : null;
   const refunded       = Number(o.refunded_amount ?? 0);
-  const ageDays   = placed ? Math.floor((Date.now() - new Date(placed).getTime()) / 86400000) : 0;
+  // Read "now" once at mount so subsequent re-renders don't drift the
+  // displayed age. React 19's purity rule flags Date.now() in render;
+  // a lazy useState initializer runs exactly once, which is what we want.
+  const [nowMs] = useState(() => Date.now());
+  const ageDays   = placed ? Math.floor((nowMs - new Date(placed).getTime()) / 86400000) : 0;
   const arrivesBy = placed ? new Date(new Date(placed).getTime() + 3 * 86400000) : null;
   const fullyCancelled = supplierCount > 0 && cancelledCount >= supplierCount;
   const canMarkReceived = !deliveredAt && !fullyCancelled;
