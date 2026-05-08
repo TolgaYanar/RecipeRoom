@@ -20,6 +20,8 @@ router.get('/:id', async (req, res) => {
                   WHEN ls.user_id IS NOT NULL THEN 'Local_Supplier'
                   WHEN hc.user_id IS NOT NULL THEN 'Home_Cook'
               END AS user_type,
+              vc.is_verified AS is_verified_chef,
+              ls.is_verified AS is_verified_supplier,
               (SELECT COUNT(*) FROM Recipe r
                 WHERE r.status = 'published'
                   AND (r.publisher_home_cook_id = u.user_id

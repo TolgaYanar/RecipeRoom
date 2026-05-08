@@ -84,27 +84,51 @@ const recipes = await query(
   params
 );
 
-    // Attach tags so list consumers (admin Recipe Management, browse
-    // page) can render category chips. Recipe_Summary doesn't carry
-    // tag info, so we side-query and merge.
+    // Attach tags + engagement counts. Recipe_Summary already carries
+    // review_count + cook_log_count, but admin Recipe Management also
+    // needs like_count and a comment count separate from rating count
+    // (comments are review rows with non-null text).
     if (recipes.length > 0) {
       const ids = recipes.map((r) => r.recipe_id);
       const placeholders = ids.map(() => '?').join(',');
-      const tagRows = await query(
-        `SELECT ht.recipe_id, t.tag_name
-         FROM Has_Tag ht
-         JOIN Tag t ON ht.tag_id = t.tag_id
-         WHERE ht.recipe_id IN (${placeholders})`,
-        ids
-      );
-      const byRecipe = new Map();
+
+      const [tagRows, likeRows, commentRows] = await Promise.all([
+        query(
+          `SELECT ht.recipe_id, t.tag_name
+           FROM Has_Tag ht
+           JOIN Tag t ON ht.tag_id = t.tag_id
+           WHERE ht.recipe_id IN (${placeholders})`,
+          ids
+        ),
+        query(
+          `SELECT recipe_id, COUNT(*) AS like_count
+           FROM Likes_Recipe
+           WHERE recipe_id IN (${placeholders})
+           GROUP BY recipe_id`,
+          ids
+        ),
+        query(
+          `SELECT recipe_id, COUNT(*) AS comment_count
+           FROM Rates_Review
+           WHERE recipe_id IN (${placeholders}) AND review_text IS NOT NULL
+           GROUP BY recipe_id`,
+          ids
+        ),
+      ]);
+
+      const tagsBy = new Map();
       for (const row of tagRows) {
-        if (!byRecipe.has(row.recipe_id)) byRecipe.set(row.recipe_id, []);
-        byRecipe.get(row.recipe_id).push(row.tag_name);
+        if (!tagsBy.has(row.recipe_id)) tagsBy.set(row.recipe_id, []);
+        tagsBy.get(row.recipe_id).push(row.tag_name);
       }
+      const likesBy    = new Map(likeRows.map((r) => [r.recipe_id, Number(r.like_count)]));
+      const commentsBy = new Map(commentRows.map((r) => [r.recipe_id, Number(r.comment_count)]));
+
       for (const r of recipes) {
-        r.tags = byRecipe.get(r.recipe_id) ?? [];
+        r.tags = tagsBy.get(r.recipe_id) ?? [];
         r.category = r.tags[0] ?? null;
+        r.like_count    = likesBy.get(r.recipe_id) ?? 0;
+        r.comment_count = commentsBy.get(r.recipe_id) ?? 0;
       }
     }
 

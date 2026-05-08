@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const { query } = require('../utils/db');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
@@ -51,7 +52,8 @@ router.post('/chefs/:id/approve', async (req, res) => {
 });
 
 // POST /api/admin/chefs/:id/reject
-// Revokes chef status by removing the Verified_Chef row.
+// Revokes chef status. Drops them down to Home_Cook so they have a
+// usable role rather than no role at all.
 router.post('/chefs/:id/reject', async (req, res) => {
   try {
     const chefId = parseInt(req.params.id);
@@ -64,6 +66,8 @@ router.post('/chefs/:id/reject', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Chef not found' });
     }
+
+    await query('INSERT IGNORE INTO Home_Cook (user_id) VALUES (?)', [chefId]);
 
     res.json({ message: 'Chef rejected successfully' });
   } catch (err) {
@@ -333,7 +337,8 @@ router.post('/suppliers/:id/approve', async (req, res) => {
   }
 });
 
-// POST /api/admin/suppliers/:id/reject — revoke supplier status
+// POST /api/admin/suppliers/:id/reject — revoke supplier status and
+// drop them to Home_Cook for the same reason as chef-reject.
 router.post('/suppliers/:id/reject', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.id);
@@ -350,6 +355,8 @@ router.post('/suppliers/:id/reject', async (req, res) => {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
+    await query('INSERT IGNORE INTO Home_Cook (user_id) VALUES (?)', [supplierId]);
+
     res.json({ message: 'Supplier rejected successfully' });
   } catch (err) {
     console.error('Error rejecting supplier:', err);
@@ -359,6 +366,103 @@ router.post('/suppliers/:id/reject', async (req, res) => {
 
 // Delegate admin highlight CRUD to highlights router
 const highlightsRouter = require('./highlights');
+// DELETE /api/admin/users/:id
+// Removes the User row; FKs cascade to all role + activity tables.
+// Admins can't delete themselves — that'd lock them out mid-action.
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+    if (targetId === req.user.id) {
+      return res.status(400).json({ error: "You can't delete your own admin account" });
+    }
+
+    const result = await query('DELETE FROM User WHERE user_id = ?', [targetId]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ message: 'User deleted' });
+  } catch (err) {
+    console.error('DELETE /admin/users/:id error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/users/:id/promote-chef
+// Adds a Verified_Chef row, marked already-verified since an admin
+// did the promotion. Refuses if the user already has any role beyond
+// Home_Cook.
+router.post('/users/:id/promote-chef', async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+
+    const [user] = await query('SELECT user_id FROM User WHERE user_id = ?', [targetId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const [chef] = await query('SELECT user_id FROM Verified_Chef WHERE user_id = ?', [targetId]);
+    if (chef) return res.status(409).json({ error: 'User is already a chef' });
+    const [supplier] = await query('SELECT user_id FROM Local_Supplier WHERE user_id = ?', [targetId]);
+    if (supplier) return res.status(409).json({ error: 'User is a supplier — demote first' });
+
+    await query(
+      `INSERT INTO Verified_Chef (user_id, verification_date, royalty_points, is_verified)
+       VALUES (?, CURDATE(), 0, TRUE)`,
+      [targetId]
+    );
+    res.json({ message: 'User promoted to chef' });
+  } catch (err) {
+    console.error('POST /admin/users/:id/promote-chef error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/users/:id/demote-chef
+// Removes a Verified_Chef row and ensures the user lands as a Home_Cook
+// — chef registration doesn't create a Home_Cook row, so without this
+// fallback the user would have no role at all and show as "—".
+router.post('/users/:id/demote-chef', async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+
+    const result = await query('DELETE FROM Verified_Chef WHERE user_id = ?', [targetId]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'User is not a chef' });
+
+    await query('INSERT IGNORE INTO Home_Cook (user_id) VALUES (?)', [targetId]);
+
+    res.json({ message: 'Chef status revoked' });
+  } catch (err) {
+    console.error('POST /admin/users/:id/demote-chef error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/users/:id/reset-password
+// Admin-driven password reset. Body: { new_password }. The admin is
+// expected to communicate the new password to the user out of band.
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id);
+    if (isNaN(targetId)) return res.status(400).json({ error: 'Invalid user ID' });
+    const { new_password } = req.body || {};
+    if (typeof new_password !== 'string' || new_password.length < 8) {
+      return res.status(400).json({ error: 'new_password must be at least 8 characters' });
+    }
+
+    const hash = await bcrypt.hash(new_password, 10);
+    const result = await query(
+      'UPDATE User SET passwordHash = ? WHERE user_id = ?',
+      [hash, targetId]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ message: 'Password reset' });
+  } catch (err) {
+    console.error('POST /admin/users/:id/reset-password error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.use('/highlights', (req, res, next) => {
   // Rewrite path so highlights router sees /admin prefix correctly
   req.url = '/admin' + (req.url === '/' ? '' : req.url);

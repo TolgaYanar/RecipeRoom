@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Shield, Users, ChefHat, Store, FileText, Sparkles, TrendingUp,
   Plus, Trash2, Check, X, Heart, MessageCircle, BarChart3,
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ManageUserModal from '../components/ManageUserModal';
 import { useToast } from '../context/ToastContext';
 import { getRecipes } from '../api/recipes';
 import {
@@ -63,7 +65,7 @@ export default function AdminPanel() {
             onReviewVerifications={() => setTab('verifications')}
           />
         )}
-        {tab === 'users'         && <UserManagementTab users={users} />}
+        {tab === 'users'         && <UserManagementTab users={users} onChange={reloadVerifs} />}
         {tab === 'verifications' && (
           <VerificationsTab
             chefs={pendingChefs}
@@ -205,7 +207,9 @@ function Kpi({ icon, label, value }) {
   );
 }
 
-function UserManagementTab({ users }) {
+function UserManagementTab({ users, onChange }) {
+  const [managing, setManaging] = useState(null);
+
   if (users === null) return <LoadingSpinner size="lg" />;
 
   return (
@@ -227,16 +231,26 @@ function UserManagementTab({ users }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EBEBEB]">
-              {users.map((u) => <UserRow key={u.user_id} user={u} />)}
+              {users.map((u) => (
+                <UserRow key={u.user_id} user={u} onManage={() => setManaging(u)} />
+              ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {managing && (
+        <ManageUserModal
+          user={managing}
+          onClose={() => setManaging(null)}
+          onChanged={onChange}
+        />
       )}
     </div>
   );
 }
 
-function UserRow({ user: u }) {
+function UserRow({ user: u, onManage }) {
   const name   = u.username || 'Unknown';
   const handle = deriveHandle(name);
   return (
@@ -264,6 +278,7 @@ function UserRow({ user: u }) {
       <td className="px-5 py-4">
         <button
           type="button"
+          onClick={onManage}
           className="text-[13px] text-[#1B3A2D] font-semibold hover:underline"
         >
           Manage
@@ -496,17 +511,17 @@ function RecipeRow({ recipe: r, highlights, onMoveTo }) {
   return (
     <tr>
       <td className="px-5 py-4">
-        <div className="flex items-center gap-3">
+        <Link to={`/recipes/${id}`} className="flex items-center gap-3 group">
           <img
             src={r.thumbnail_url || r.image_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.title || 'R')}`}
             alt=""
             className="w-12 h-12 rounded-lg object-cover bg-[#FAF8F5]"
           />
           <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-[#1A1A1A] truncate">{r.title}</div>
+            <div className="text-[14px] font-semibold text-[#1A1A1A] truncate group-hover:underline">{r.title}</div>
             {r.cuisine && <div className="text-[12px] text-[#6B6B6B]">{capitalize(r.cuisine)}</div>}
           </div>
-        </div>
+        </Link>
       </td>
       <td className="px-5 py-4 text-[13px] text-[#1A1A1A]">{r.publisher_name ?? '—'}</td>
       <td className="px-5 py-4">
@@ -517,7 +532,10 @@ function RecipeRow({ recipe: r, highlights, onMoveTo }) {
         )}
       </td>
       <td className="px-5 py-4">
-        <div className="flex items-center gap-3 text-[12px] text-[#6B6B6B]">
+        <Link
+          to={`/recipes/${id}`}
+          className="inline-flex items-center gap-3 text-[12px] text-[#6B6B6B] hover:text-[#1B3A2D]"
+        >
           <span className="inline-flex items-center gap-1">
             <Heart className="w-3.5 h-3.5 text-[#B71C1C]" strokeWidth={1.5} />
             {r.like_count ?? 0}
@@ -527,7 +545,7 @@ function RecipeRow({ recipe: r, highlights, onMoveTo }) {
             <MessageCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
             {r.comment_count ?? 0}
           </span>
-        </div>
+        </Link>
       </td>
       <td className="px-5 py-4">
         <select

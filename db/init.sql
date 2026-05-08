@@ -373,7 +373,7 @@ CREATE TABLE Order_Events(
 CREATE VIEW Recipe_Summary AS
 SELECT r.recipe_id, r.title, r.description, r.cooking_time, r.difficulty, r.base_servings, r.status,
        u.UserName AS publisher_name,
-       vc.user_id AS is_verified_chef,
+       CASE WHEN vc.is_verified = TRUE THEN vc.user_id ELSE NULL END AS is_verified_chef,
        AVG(rr.score) AS avg_rating,
        COUNT(DISTINCT rr.user_id) AS review_count,
        COUNT(DISTINCT lc.user_id) AS cook_log_count,
@@ -383,7 +383,11 @@ JOIN User u ON (
     (r.publisher_home_cook_id IS NOT NULL AND r.publisher_home_cook_id = u.user_id)
     OR (r.publisher_chef_id IS NOT NULL AND r.publisher_chef_id = u.user_id)
 )
-LEFT JOIN Verified_Chef vc ON r.publisher_chef_id = vc.user_id
+-- Look up the publisher's chef status via whichever publisher column is
+-- set. This makes the badge follow the user's current role rather than
+-- being baked into the recipe at publish time, so promoted-to-chef
+-- users light up on their old cook-published recipes too.
+LEFT JOIN Verified_Chef vc ON vc.user_id = COALESCE(r.publisher_chef_id, r.publisher_home_cook_id)
 LEFT JOIN Rates_Review rr ON r.recipe_id = rr.recipe_id
 LEFT JOIN Logs_Cook lc ON r.recipe_id = lc.recipe_id
 LEFT JOIN Recipe_Media rm ON r.recipe_id = rm.recipe_id AND rm.is_thumbnail = TRUE
