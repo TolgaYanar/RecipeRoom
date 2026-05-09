@@ -560,11 +560,16 @@ function RecipeRow({ recipe: r, highlights, onMoveTo }) {
       </td>
       <td className="px-5 py-4 text-[13px] text-[#1A1A1A]">{r.publisher_name ?? '—'}</td>
       <td className="px-5 py-4">
-        {r.category && (
-          <span className="px-2.5 py-1 bg-[#F5F5F5] text-[#1A1A1A] text-[12px] font-medium rounded-md">
-            {prettyCategory(r.category)}
-          </span>
-        )}
+        <div className="flex flex-wrap gap-1">
+          {(r.tags ?? []).map((t) => (
+            <span
+              key={t}
+              className="px-2 py-0.5 bg-[#F5F5F5] text-[#1A1A1A] text-[11px] font-medium rounded-md"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
       </td>
       <td className="px-5 py-4">
         <Link
@@ -639,6 +644,22 @@ function FeaturedSelectionsTab() {
     }
   };
 
+  const removeRecipe = async (selectionId, recipeId) => {
+    const target = highlights.find((h) =>
+      (h.selection_id ?? h.id ?? h.highlight_id) === selectionId
+    );
+    if (!target) return;
+    const remaining = (target.recipes ?? [])
+      .map((r) => r.recipe_id ?? r.id)
+      .filter((rid) => rid !== recipeId);
+    try {
+      await updateAdminHighlight(selectionId, { recipe_ids: remaining });
+      reload();
+    } catch {
+      // already toasted by the interceptor
+    }
+  };
+
   if (highlights === null) return <LoadingSpinner size="lg" />;
 
   return (
@@ -681,7 +702,12 @@ function FeaturedSelectionsTab() {
       ) : (
         <ul className="space-y-3">
           {highlights.map((h) => (
-            <HighlightRow key={h.selection_id ?? h.id ?? h.highlight_id} highlight={h} onDelete={remove} />
+            <HighlightRow
+              key={h.selection_id ?? h.id ?? h.highlight_id}
+              highlight={h}
+              onDelete={remove}
+              onRemoveRecipe={removeRecipe}
+            />
           ))}
         </ul>
       )}
@@ -689,7 +715,7 @@ function FeaturedSelectionsTab() {
   );
 }
 
-function HighlightRow({ highlight: h, onDelete }) {
+function HighlightRow({ highlight: h, onDelete, onRemoveRecipe }) {
   const id = h.selection_id ?? h.id ?? h.highlight_id;
   const recipes = h.recipes ?? [];
   const active  = h.active ?? h.is_active;
@@ -725,15 +751,26 @@ function HighlightRow({ highlight: h, onDelete }) {
 
       {recipes.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {recipes.map((r) => (
-            <span
-              key={r.recipe_id ?? r.id}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF8F5] border border-[#EBEBEB] rounded-md text-[12px] text-[#1A1A1A]"
-            >
-              <Sparkles className="w-3 h-3 text-[#F5C518]" strokeWidth={1.5} />
-              {r.title}
-            </span>
-          ))}
+          {recipes.map((r) => {
+            const rid = r.recipe_id ?? r.id;
+            return (
+              <span
+                key={rid}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF8F5] border border-[#EBEBEB] rounded-md text-[12px] text-[#1A1A1A] group"
+              >
+                <Sparkles className="w-3 h-3 text-[#F5C518]" strokeWidth={1.5} />
+                {r.title}
+                <button
+                  type="button"
+                  onClick={() => onRemoveRecipe?.(id, rid)}
+                  className="ml-1 text-[#9E9E9E] hover:text-[#B71C1C]"
+                  aria-label={`Remove ${r.title} from selection`}
+                >
+                  <X className="w-3 h-3" strokeWidth={2} />
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
     </li>

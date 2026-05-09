@@ -279,6 +279,15 @@ export default function RecipeDetail() {
         <h1 className="text-[36px] font-bold text-[#1A1A1A] leading-tight mb-2">
           {recipe.title}
         </h1>
+        {recipe.parent_recipe && (
+          <Link
+            to={`/recipes/${recipe.parent_recipe.recipe_id}`}
+            className="inline-flex items-center gap-1.5 mb-3 text-[13px] text-[#1B3A2D] font-semibold hover:underline"
+          >
+            <GitBranch className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Forked from {recipe.parent_recipe.title}
+          </Link>
+        )}
         {recipe.description && (
           <p className="text-[15px] text-[#6B6B6B] leading-relaxed mb-5">
             {recipe.description}
@@ -337,6 +346,9 @@ export default function RecipeDetail() {
             </ActionChip>
             <ActionChip icon={<MessageCircle className="w-4 h-4" strokeWidth={1.5} />}>
               {reviews.length} Comments
+            </ActionChip>
+            <ActionChip icon={<ChefHat className="w-4 h-4" strokeWidth={1.5} />}>
+              {Number(recipe.cook_log_count ?? 0)} Cooked
             </ActionChip>
             <ActionChip
               onClick={handleSaveRecipe}
@@ -715,17 +727,23 @@ function CommentsSection({ comments, comment, onChange, rating, onRatingChange, 
               className="w-9 h-9 rounded-full bg-[#FAF8F5] shrink-0"
             />
             <div className="flex-1">
-              <div className="text-[13px] mb-1">
+              <div className="text-[13px] mb-1 flex items-center flex-wrap gap-x-1 gap-y-0.5">
                 <span className="font-semibold text-[#1A1A1A]">{c.author}</span>
-                {c.handle && <span className="text-[#9E9E9E] ml-1">@{c.handle}</span>}
+                {c.handle && <span className="text-[#9E9E9E]">@{c.handle}</span>}
+                {Number(c.score) > 0 && (
+                  <>
+                    <span className="text-[#9E9E9E]">·</span>
+                    <StarRating value={Number(c.score)} readOnly size="sm" />
+                  </>
+                )}
                 {c.date && (
                   <>
-                    <span className="text-[#9E9E9E] mx-1">·</span>
+                    <span className="text-[#9E9E9E]">·</span>
                     <span className="text-[#6B6B6B]">{c.date}</span>
                   </>
                 )}
               </div>
-              <p className="text-[14px] text-[#1A1A1A] leading-relaxed mb-1.5">{c.body}</p>
+              {c.body && <p className="text-[14px] text-[#1A1A1A] leading-relaxed mb-1.5">{c.body}</p>}
               <button
                 type="button"
                 onClick={() => onLikeComment?.(c)}
