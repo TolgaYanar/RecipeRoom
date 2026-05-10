@@ -8,7 +8,7 @@ Have **four browser tabs** open before starting:
 | 1 | `alice@example.com` / `password1` | Cook flows (browse, order, profile) |
 | 2 | `marco@example.com` / `password1` | Chef flows (royalties, recipe ownership) |
 | 3 | `greenfarm@example.com` / `password1` | Supplier flows (inventory, incoming orders) |
-| 4 | `admin@example.com` / `password1` | Admin flows (verifications, recipe mgmt, featured) |
+| 4 | `admin@example.com` / `password1` | Admin flows (verifications, recipe mgmt, featured, challenges) |
 
 Run `MYSQL_PWD=<pwd> ./db/reset.sh` immediately before the demo for clean state.
 
@@ -25,11 +25,11 @@ Run `MYSQL_PWD=<pwd> ./db/reset.sh` immediately before the demo for clean state.
 | Stocks | 22 across 3 suppliers | multi-unit (g/kg/ml/l/piece) for unit demo |
 | Low Stock rows | 3 | Bulk Basics Tomato 0.08 kg, Honey 0.05 l, Spice Cinnamon 80 g |
 | Orders | 4 in different lifecycle states | placed → in-transit → cancelled-partial → delivered |
-| Order_Events | 7 | matches the lifecycle states |
+| Order_Events | 11 | matches the lifecycle states (placed/shipped/delivered/reviewed/cancelled) |
 | Reviews | 10 | feeds avg_rating + admin engagement column |
 | Recipe_Views | 12 | feeds chef Royalties unique-viewer column |
 | Meal lists | 3 | demo Save-to-list flow |
-| Active challenges | 2 + 1 ended (with winner) | challenges tab |
+| Active challenges | 2 + 1 ended (with winner) | each linked to a Badge prize via `Offers` |
 | Featured selections | 2 | Home page hero + admin Featured Selections |
 | Follows | 7 | profile follower counts |
 | Cook log entries | 5 | Profile › Cook Log tab |
@@ -57,63 +57,68 @@ Run `MYSQL_PWD=<pwd> ./db/reset.sh` immediately before the demo for clean state.
 4. Open **Spaghetti Pomodoro**. Point out:
    - Verified Chef badge on Marco's name.
    - Star rating average from `Recipe_Summary` view.
-   - Cook log count "X cooked".
-5. **Bump servings 2 → 4.** Point out: ingredient quantities AND prices both scale.
-6. Click **"Shop This Meal"**. Point out:
+   - **"X Cooked"** action chip — `cook_log_count` from a correlated subquery on `Logs_Cook`.
+   - Scroll to comments — every review row shows the cook's **star rating** next to their text (driven off `Rates_Review.score`).
+5. Open **Spaghetti Aglio e Olio** (Bob's recipe). Point out the **"Forked from Spaghetti Pomodoro"** link directly under the title — clicking it jumps to the parent. The fork relationship comes from `Recipe.parent_recipe_id`.
+6. Back on Pomodoro, **bump servings 2 → 4.** Point out: ingredient quantities AND prices both scale.
+7. Click **"Shop This Meal"**. Point out:
    - Each ingredient has a preferred supplier + alternatives.
    - Olive Oil shows two suppliers (Green Farm 0.020/ml vs Spice Supply 0.025/ml) — planner picked the cheaper one.
    - **Mention:** "This is the greedy multi-ingredient consolidation. The planner runs a JOIN across `Stocks`, `Allows_Substitution`, and a taxonomy fallback, then in JS picks the supplier covering the most ingredients first to minimize delivery fees."
-7. Click **"Add to Cart"** then go to checkout.
+8. Click **"Add to Cart"** then go to checkout.
 
 ### Act 3 — Multi-step checkout + place order (rubric: Insertion 5 pts, Application & GUI)
 
-8. Walk through Review → Delivery (enter `123 Bilkent Cyberpark`) → Payment.
-9. Show the **per-supplier delivery breakdown** in the sidebar: "Delivery · 2 suppliers × $2.49 = $4.98".
-10. Click **Complete Order**. Point out toast.
-11. **Open Profile › Orders.** Point out:
+9. Walk through Review → Delivery (enter `123 Bilkent Cyberpark`) → Payment.
+10. Show the **per-supplier delivery breakdown** in the sidebar: "Delivery · 2 suppliers × $2.49 = $4.98".
+11. Click **Complete Order**. Point out toast.
+12. **Open Profile › Orders.** Point out:
     - Address line on the order card.
     - Status pill ("Arriving by [date]").
-    - Click chevron → expands to show **Timeline** (`Order placed`) + items grouped by supplier.
+    - Click chevron → expands to show **Timeline** + items grouped by supplier. Order #1 (oldest) shows the **full lifecycle**: `placed → shipped (×2) → delivered → reviewed`.
     - **Mention:** "Order placement is a single transaction — locks the cook's wallet row, locks each supplier's stock row, inserts Orders + Fulfills_Item, debits stock in the supplier's own unit, credits each supplier's wallet, and writes a 'placed' event to Order_Events. Fail anywhere and nothing persists."
 
 ### Act 4 — Supplier lifecycle (rubric: Update 5 pts)
 
-12. Switch to **Green Farm tab** → Supplier → Incoming Orders.
-13. Find an order, click **"Mark Shipped"**. Point out:
+13. Switch to **Green Farm tab** → Supplier → Incoming Orders.
+14. Find an order, click **"Mark Shipped"**. Point out:
     - Pill flips to "Shipped".
     - **Mention:** "This inserts a 'shipped' event scoped to the supplier into Order_Events. The cook's order detail will pick this up via correlated subqueries that derive 'In transit' state."
-14. **Order #3 (Carla's Chickpea Curry)** — already has Spice Supply cancelling. Switch to admin tab and run:
+15. **Order #3 (Carla's Chickpea Curry)** — already has Spice Supply cancelling. Switch to admin tab and run:
     ```sql
     SELECT * FROM Order_Events WHERE order_id = 3 ORDER BY occurred_at;
     ```
     Or just point at the order in Carla's profile (log in as carla briefly) showing the **red refund banner**: "1 of 3 suppliers cancelled · $X refunded".
-15. Switch back to Alice → mark her in-transit order as **Received**.
+16. Switch back to Alice → mark her in-transit order as **Received**.
 
 ### Act 5 — Drafts + fork + verified-chef badge (rubric: Application & GUI)
 
-16. **As Bob** (`bob@example.com` / `password1`): go to Profile › My Recipes. Point out the **Draft** pill on "Mystery Recipe (WIP)" and the **fork** "Spaghetti Aglio e Olio" with parent indicator.
-17. Click into the draft → owner sees the yellow **"Draft — only you can see this recipe"** banner with a **Publish** button.
-18. **Anon path:** open a private window, navigate directly to the draft URL → **404**. Show this proves drafts are owner-only on the backend.
+17. **As Bob** (`bob@example.com` / `password1`): go to Profile › My Recipes. Point out the **Draft** pill on "Mystery Recipe (WIP)" and the **fork** "Spaghetti Aglio e Olio" with parent indicator.
+18. Click into the draft → owner sees the yellow **"Draft — only you can see this recipe"** banner with a **Publish** button.
+19. **Anon path:** open a private window, navigate directly to the draft URL → **404**. Show this proves drafts are owner-only on the backend.
 
 ### Act 6 — Admin (rubric: Update 5 pts, Insertion 5 pts, Reports 10 pts)
 
-19. **Admin tab** → Overview. Point out yellow banner "1 chef + 1 supplier verification awaiting". Click **"Review Verifications"**.
-20. **Verifications tab** — show `chef_pending`. Click Approve. The pill switches and the row disappears.
+20. **Admin tab** → Overview. Point out yellow banner "1 chef + 1 supplier verification awaiting". Click **"Review Verifications"**.
+21. **Verifications tab** — show `chef_pending`. Click Approve. The pill switches and the row disappears.
     - **Mention:** "Approve flips `Verified_Chef.is_verified = TRUE`. The pending list query is `WHERE is_verified = FALSE`, so they drop out instantly."
-21. **User Management tab** — find Bob, click **Manage**. Show:
+22. **User Management tab** — find Bob, click **Manage**. Show:
     - **Promote to chef** → flash to chef tab; switch to Bob's profile, see Verified Chef badge appear.
     - **Reset password** → set `temp123x` → password receipt card appears with copy button. "This is the one window the admin sees the plaintext; backend stored only the hash."
     - **Delete user** (cancel — don't actually delete).
-22. **Recipe Management tab.** Point out:
-    - Category column populated from `Has_Tag` joined with `Tag` (added via side-query).
+23. **Recipe Management tab.** Point out:
+    - **Tags** column shows **all** tags as chips per recipe (not just one) — pulled from `Has_Tag` ⨝ `Tag` and grouped per `recipe_id`.
     - Engagement column shows clickable likes + comments (Link → recipe page).
     - **Move-to dropdown** → assign a recipe to a featured selection. Mention this is a PATCH that DELETE+INSERTs into `Highlights`.
-23. **Featured Selections tab.** Show 2 selections with their recipe chips. Create a third → save → see chips render.
-24. **Analytics tab.** Show the activity feed.
+24. **Featured Selections tab.** Show 2 selections with their recipe chips. Hover a chip → an **X** appears; click to remove a recipe (PATCH replaces the `recipe_ids` set). Create a third selection → save → see chips render.
+25. **Challenges tab.** Show the existing 3 challenges (each row expands to a **leaderboard** + **badge prize** image/name from `Offers`). Click **+ New Challenge** to demo creation:
+    - Pick a **required tag**, **start/end dates**, and fill in title + description.
+    - Badge prize radio: **None / Existing / Create new**. Pick "Create new" → fill name + icon URL → submit. **Mention:** "This is one transaction: INSERT `Badge`, then INSERT `Offers (challenge_id, badge_id)`. The new row appears in the Challenges list with the badge attached."
+26. **Analytics tab.** Show the activity feed.
 
 ### Act 7 — Reports (rubric: 2 reports w/ complex query 10 pts)
 
-25. **Report 1 — Chef Royalties.** Switch to Marco tab → Profile › Royalties tab.
+27. **Report 1 — Chef Royalties.** Switch to Marco tab → Profile › Royalties tab.
     - **Total Points: 9 · Orders Linked: 2 · Top Recipe: Spaghetti Pomodoro**
     - Per-recipe table: orders, avg rating, unique views.
     - **Show the SQL** (have it ready in your editor):
@@ -132,7 +137,7 @@ Run `MYSQL_PWD=<pwd> ./db/reset.sh` immediately before the demo for clean state.
         ```
     - Mention: "Three LEFT JOINs, two `COUNT(DISTINCT)` (so re-views and multi-line orders don't double-count), AVG over reviews, GROUP BY per recipe."
 
-26. **Report 2 — Supplier Dashboard KPIs.** Switch to Green Farm tab → Supplier Dashboard.
+28. **Report 2 — Supplier Dashboard KPIs.** Switch to Green Farm tab → Supplier Dashboard.
     - Show **Wallet Balance, Orders This Week, Low Stock Items, Total Products** KPIs.
     - Open the Low Stock list — see Bulk Basics' Tomato 0.08 kg / Honey 0.05 l / Spice's Cinnamon 80 g.
     - **Show the view + query:**
@@ -159,7 +164,29 @@ Run `MYSQL_PWD=<pwd> ./db/reset.sh` immediately before the demo for clean state.
         ```
     - Mention: "4.85 kg used to be flagged Low Stock the same as 4.85 g — flat threshold. The view normalizes per unit category. Same logic mirrors on the frontend's live-edit badge so it stays consistent."
 
-### Act 8 — Triggers + constraints + integrity (rubric: Database features 10 pts)
+### Act 8 — Challenges (rubric: Insertion 5 pts, complex queries)
+
+29. From the Home page, scroll to the **Challenges** section. Point out 2 active challenges, each showing the **badge prize** (from `Offers`):
+    - **Italian Week** — required tag Italian, 1 participant (Bob), ends in ~5 days · prize: Master Chef
+    - **Healthy Habit** — required tag Healthy, 1 participant (Carla), ~20 days left · prize: Healthy Eater
+30. Click **"See all challenges"** → `/challenges` page.
+    - Show the third one — **"Vegan Adventure"** — already ended, with `carla_hc` as **Winner**. Her **Frequent Cooker** badge was awarded into `Unlocks` during seed.
+31. As Alice (currently logged in), click **"Join"** on Italian Week.
+    - **Mention:** "This INSERTs into `Participates_in`. From now on, every time Alice's `Logs_Cook` matches an Italian recipe, her score auto-increments."
+32. Hop to **Tomato Basil Soup** (Italian-tagged, no pre-seeded Alice log so the entry is visibly fresh), click **"I Cooked This"**. Open Profile › Cook Log → new entry on top. Refresh the Challenges page → Alice's Italian Week progress bumped by 1 automatically.
+33. **Mention the query that does this** (in `backend/src/routes/orders.js` `awardChallengeScore`):
+    ```sql
+    UPDATE Participates_in pi
+       JOIN Kitchen_Challenge kc ON pi.challenge_id = kc.challenge_id
+       JOIN Has_Tag ht           ON ht.recipe_id = ? AND ht.tag_id = kc.required_tag_id
+       SET pi.score = pi.score + 1
+     WHERE pi.user_id = ?
+       AND pi.progress_status = 'In Progress'
+       AND kc.end_date >= CURDATE();
+    ```
+    "Three-table JOIN that matches the cooked recipe's tags against active challenges the user is enrolled in. Matching rows get +1 in one statement."
+
+### Act 9 — Triggers + constraints + integrity (rubric: Database features 10 pts)
 
 Have these snippets ready in your editor — show them as you mention each feature:
 

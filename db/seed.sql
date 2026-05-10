@@ -223,7 +223,7 @@ INSERT INTO Stocks (supplier_id, ingredient_id, price_per_unit, current_stock, u
 (6, 4,  0.080,  600, 'g'),     -- Basil
 (6, 7,  0.012, 1200, 'g'),     -- Quinoa
 (6, 14, 0.4,    300, 'piece'), -- Apple
-(6, 11, 0.3,     50, 'piece'), -- Banana — Low Stock (< 5 piece is the floor; bumped to 50 for In Stock demo)
+(6, 11, 0.3,     50, 'piece'), -- Banana (well-stocked; threshold is < 5 piece)
 (6, 22, 0.020,  500, 'g'),     -- Strawberry
 (6, 5,  0.020,  900, 'ml');    -- Olive Oil
 
@@ -316,21 +316,27 @@ INSERT INTO Contains_Recipe (list_name, user_id, recipe_id) VALUES
 -- =============================================
 INSERT INTO Kitchen_Challenge (title, description, start_date, end_date, required_tag_id, user_id) VALUES
 ('Italian Week',     'Cook 3 Italian recipes in one week',
-   CURDATE() - INTERVAL 5 DAY, CURDATE() + INTERVAL 2 DAY, 1, 8),
+   CURDATE() - INTERVAL 2 DAY, CURDATE() + INTERVAL 5 DAY, 1, 8),
 ('Healthy Habit',    'Cook 5 healthy recipes this month',
    CURDATE() - INTERVAL 10 DAY, CURDATE() + INTERVAL 20 DAY, 2, 8),
 ('Vegan Adventure',  'Try 3 vegan recipes in two weeks',
    CURDATE() - INTERVAL 14 DAY, CURDATE() - INTERVAL 1 DAY, 4, 8);  -- ended (winner-pickable)
 
+-- Alice is intentionally NOT pre-joined to Italian Week — the demo (Act 8)
+-- has her click "Join" live to show the Participates_in INSERT + scoring flow.
 INSERT INTO Participates_in (user_id, challenge_id, score, progress_status) VALUES
-(1, 1, 2, 'In Progress'),  -- alice cooked 2/3 italian
-(2, 1, 0, 'In Progress'),  -- bob just joined
+(2, 1, 1, 'In Progress'),  -- bob in Italian Week, 1 italian cook
 (3, 2, 3, 'In Progress'),  -- carla doing healthy
-(1, 2, 1, 'In Progress'),
 (3, 3, 3, 'Winner');       -- carla won the ended vegan challenge
 
+-- Each challenge offers a badge as the prize via the Offers table.
+INSERT INTO Offers (challenge_id, badge_id) VALUES
+(1, 1),  -- Italian Week    → Master Chef
+(2, 2),  -- Healthy Habit   → Healthy Eater
+(3, 3);  -- Vegan Adventure → Frequent Cooker
+
 INSERT INTO Unlocks (user_id, badge_id) VALUES
-(3, 3);
+(3, 3);  -- carla unlocked Frequent Cooker by winning Vegan Adventure
 
 -- =============================================
 -- 18. FOLLOWERS (chef has followers; drives Profile follower count)
@@ -415,6 +421,6 @@ INSERT INTO Order_Events (order_id, supplier_id, event_type, actor_user_id, note
 (2, 7,    'shipped', 7, NULL, NOW() - INTERVAL 30 HOUR),
 -- order 3: placed → Spice cancelled their slice (refund banner shown to cook)
 (3, NULL, 'placed',    3, NULL, NOW() - INTERVAL 1 DAY),
-(3, 7,    'cancelled', 7, 'Out of curry powder, sorry', NOW() - INTERVAL 18 HOUR),
+(3, 7,    'cancelled', 7, NULL, NOW() - INTERVAL 18 HOUR),
 -- order 4: just placed (arriving by [+3d])
 (4, NULL, 'placed', 1, NULL, NOW() - INTERVAL 1 HOUR);

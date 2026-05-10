@@ -4,6 +4,7 @@ import {
   Shield, Users, ChefHat, Store, FileText, Sparkles, TrendingUp,
   Plus, Trash2, Check, X, Heart, MessageCircle, BarChart3,
   UserPlus, UtensilsCrossed, Star, ShoppingCart, ShieldAlert,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -16,7 +17,12 @@ import {
   getPendingSuppliers, approveSupplier, rejectSupplier,
   getAdminHighlights, createAdminHighlight, updateAdminHighlight, deleteAdminHighlight,
   getAdminActivity,
+  getAllTags, getAllBadges,
+  getAdminChallenges, getAdminChallenge,
 } from '../api/admin';
+import {
+  createChallenge, updateChallenge,
+} from '../api/challenges';
 
 const TABS = [
   { id: 'overview',      label: 'Overview' },
@@ -24,6 +30,7 @@ const TABS = [
   { id: 'verifications', label: 'Verifications' },
   { id: 'recipes',       label: 'Recipe Management' },
   { id: 'highlights',    label: 'Featured Selections' },
+  { id: 'challenges',    label: 'Challenges' },
   { id: 'analytics',     label: 'Analytics' },
 ];
 
@@ -77,6 +84,7 @@ export default function AdminPanel() {
         )}
         {tab === 'recipes'       && <RecipeManagementTab />}
         {tab === 'highlights'    && <FeaturedSelectionsTab />}
+        {tab === 'challenges'    && <ChallengeManagementTab />}
         {tab === 'analytics'     && <AnalyticsTab />}
       </div>
     </div>
@@ -889,6 +897,346 @@ const TOP_RECIPES = [
   { title: 'Tomato Basil Soup',          author: 'chef_marco', orders: 7,  cook_logs: 6,  avg_rating: 4.5 },
   { title: 'Vegan Banana Oat Pancakes',  author: 'chef_aisha', orders: 6,  cook_logs: 8,  avg_rating: 4.3 },
 ];
+
+function ChallengeManagementTab() {
+  const toast = useToast();
+  const [list,    setList]    = useState(null);
+  const [tags,    setTags]    = useState([]);
+  const [badges,  setBadges]  = useState([]);
+  const [reload,  setReload]  = useState(0);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      getAdminChallenges().catch(() => []),
+      getAllTags().catch(() => []),
+      getAllBadges().catch(() => []),
+    ])
+      .then(([cs, ts, bs]) => {
+        if (cancelled) return;
+        setList(itemsOf(cs));
+        setTags(itemsOf(ts));
+        setBadges(itemsOf(bs));
+      });
+    return () => { cancelled = true; };
+  }, [reload]);
+
+  const closeChallenge = async (id) => {
+    try {
+      // Mark closed by ending it today; backend has no DELETE.
+      await updateChallenge(id, { end_date: new Date().toISOString().slice(0, 10) });
+      toast.success('Challenge closed');
+      setReload((k) => k + 1);
+    } catch {
+      // already toasted by the interceptor
+    }
+  };
+
+  if (list === null) return <LoadingSpinner size="lg" />;
+
+  return (
+    <div>
+      <header className="mb-5">
+        <h2 className="text-[20px] font-bold text-[#1A1A1A]">Challenges</h2>
+      </header>
+
+      <div className="flex justify-end mb-3">
+        {!creating && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1B3A2D] text-white rounded-lg text-[13px] font-semibold hover:bg-[#142B22]"
+          >
+            <Plus className="w-4 h-4" strokeWidth={2} />
+            New Challenge
+          </button>
+        )}
+      </div>
+
+      {creating && (
+        <NewChallengeForm
+          tags={tags}
+          badges={badges}
+          onCancel={() => setCreating(false)}
+          onCreated={() => { setCreating(false); setReload((k) => k + 1); }}
+        />
+      )}
+
+      {list.length === 0 ? (
+        <EmptyState message="No challenges yet." icon="🏆" />
+      ) : (
+        <ul className="space-y-3">
+          {list.map((c) => (
+            <ChallengeRow
+              key={c.challenge_id}
+              challenge={c}
+              onClose={() => closeChallenge(c.challenge_id)}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ChallengeRow({ challenge: c, onClose }) {
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    if (!open || detail) return;
+    getAdminChallenge(c.challenge_id).then(setDetail).catch(() => setDetail({}));
+  }, [open, c.challenge_id, detail]);
+
+  return (
+    <li className="bg-white border border-[#EBEBEB] rounded-2xl overflow-hidden">
+      <div className="flex items-start justify-between gap-3 p-4">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex-1 min-w-0 text-left"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            {open
+              ? <ChevronUp className="w-4 h-4 text-[#6B6B6B]" />
+              : <ChevronDown className="w-4 h-4 text-[#6B6B6B]" />}
+            <h4 className="text-[15px] font-bold text-[#1A1A1A] truncate">{c.title}</h4>
+            <span className={
+              'px-2 py-0.5 rounded-md text-[11px] font-semibold ' +
+              (c.has_ended ? 'bg-[#F0F0F0] text-[#6B6B6B]' : 'bg-[#E8F1EC] text-[#1B5E20]')
+            }>
+              {c.has_ended ? 'Ended' : 'Active'}
+            </span>
+            {c.required_tag_name && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#FFF7DC] text-[#8A6E00]">
+                {c.required_tag_name}
+              </span>
+            )}
+          </div>
+          {c.description && <div className="text-[13px] text-[#6B6B6B] mb-1">{c.description}</div>}
+          <div className="text-[12px] text-[#9E9E9E]">
+            {formatDate(c.start_date)} → {formatDate(c.end_date)} · {c.participant_count} participant{c.participant_count === 1 ? '' : 's'}
+          </div>
+        </button>
+        {!c.has_ended && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[12px] font-semibold text-[#B71C1C] hover:underline shrink-0"
+          >
+            Close now
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="px-4 pb-4 border-t border-[#EBEBEB] pt-3">
+          {detail === null ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <>
+              {detail.badge_name && (
+                <div className="mb-3 px-3 py-2 bg-[#FFF7DC] border border-[#F0E2A8] rounded-lg flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#F5C518]" strokeWidth={1.5} />
+                  <div>
+                    <div className="text-[13px] font-semibold text-[#1A1A1A]">Badge prize: {detail.badge_name}</div>
+                    {detail.badge_description && (
+                      <div className="text-[11px] text-[#6B6B6B]">{detail.badge_description}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="text-[12px] font-semibold text-[#1A1A1A] mb-2">
+                Leaderboard ({(detail.leaderboard ?? []).length})
+              </div>
+              {(detail.leaderboard ?? []).length === 0 ? (
+                <div className="text-[12px] text-[#9E9E9E]">No participants yet.</div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {detail.leaderboard.map((p, i) => (
+                    <li key={p.user_id} className="flex items-center justify-between text-[13px]">
+                      <span className="text-[#1A1A1A]">
+                        <span className="text-[#9E9E9E] mr-2">#{i + 1}</span>
+                        {p.username}
+                        {p.progress_status === 'Winner' && (
+                          <span className="ml-2 px-2 py-0.5 bg-[#FFF7DC] text-[#8A6E00] text-[10px] font-semibold rounded">Winner</span>
+                        )}
+                      </span>
+                      <span className="text-[#6B6B6B]">score {p.score}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function NewChallengeForm({ tags, badges, onCancel, onCreated }) {
+  const toast = useToast();
+  const today = new Date().toISOString().slice(0, 10);
+  const inOneWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const [title, setTitle]       = useState('');
+  const [desc, setDesc]         = useState('');
+  const [startDate, setStart]   = useState(today);
+  const [endDate, setEnd]       = useState(inOneWeek);
+  const [tagId, setTagId]       = useState(tags[0]?.tag_id ?? '');
+  const [badgeMode, setBadgeMode] = useState('none'); // 'none' | 'existing' | 'new'
+  const [badgeId, setBadgeId]   = useState('');
+  const [newBadgeName, setNewBadgeName] = useState('');
+  const [newBadgeDesc, setNewBadgeDesc] = useState('');
+  const [newBadgeIcon, setNewBadgeIcon] = useState('');
+  const [saving, setSaving]     = useState(false);
+
+  const submit = async () => {
+    if (!title.trim() || !tagId) {
+      toast.error('Title and required tag are required');
+      return;
+    }
+    if (new Date(endDate) <= new Date(startDate)) {
+      toast.error('End date must be after start date');
+      return;
+    }
+    if (badgeMode === 'new') {
+      if (!newBadgeName.trim() || !newBadgeIcon.trim()) {
+        toast.error('New badge needs a name and icon URL');
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const body = {
+        title: title.trim(),
+        description: desc.trim() || null,
+        start_date: startDate,
+        end_date: endDate,
+        required_tag_id: Number(tagId),
+      };
+      if (badgeMode === 'existing' && badgeId) {
+        body.badge_id = Number(badgeId);
+      } else if (badgeMode === 'new') {
+        body.badge_name = newBadgeName.trim();
+        body.badge_description = newBadgeDesc.trim() || null;
+        body.badge_icon_url = newBadgeIcon.trim();
+      }
+      await createChallenge(body);
+      toast.success(badgeMode === 'new' ? 'Challenge + badge created' : 'Challenge created');
+      onCreated();
+    } catch {
+      // already toasted by the interceptor
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-[#1B3A2D] rounded-2xl p-5 mb-4">
+      <h4 className="text-[15px] font-bold text-[#1A1A1A] mb-4">Create New Challenge</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <Field label="Title" required>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Mediterranean Week" className={INPUT} />
+        </Field>
+        <Field label="Required Tag" required>
+          <select value={tagId} onChange={(e) => setTagId(e.target.value)} className={INPUT}>
+            <option value="">Select a tag…</option>
+            {tags.map((t) => (
+              <option key={t.tag_id} value={t.tag_id}>{t.tag_name}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Start Date" required>
+          <input type="date" value={startDate} onChange={(e) => setStart(e.target.value)} className={INPUT} />
+        </Field>
+        <Field label="End Date" required>
+          <input type="date" value={endDate} onChange={(e) => setEnd(e.target.value)} className={INPUT} />
+        </Field>
+      </div>
+      <Field label="Description">
+        <textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          rows={2}
+          placeholder="What cooks need to do…"
+          className={INPUT}
+        />
+      </Field>
+      <Field label="Badge prize">
+        <div className="flex items-center gap-3 mb-2 text-[13px]">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" checked={badgeMode === 'none'} onChange={() => setBadgeMode('none')} />
+            None
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" checked={badgeMode === 'existing'} onChange={() => setBadgeMode('existing')} />
+            Use existing
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" checked={badgeMode === 'new'} onChange={() => setBadgeMode('new')} />
+            Create new
+          </label>
+        </div>
+
+        {badgeMode === 'existing' && (
+          <select value={badgeId} onChange={(e) => setBadgeId(e.target.value)} className={INPUT}>
+            <option value="">Select a badge…</option>
+            {badges.map((b) => (
+              <option key={b.badge_id} value={b.badge_id}>
+                {b.name}{b.description ? ` — ${b.description}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {badgeMode === 'new' && (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={newBadgeName}
+              onChange={(e) => setNewBadgeName(e.target.value)}
+              placeholder="Badge name (e.g. Pasta Master)"
+              className={INPUT}
+            />
+            <input
+              type="text"
+              value={newBadgeIcon}
+              onChange={(e) => setNewBadgeIcon(e.target.value)}
+              placeholder="Icon URL (e.g. https://example.com/icons/pasta.png)"
+              className={INPUT}
+            />
+            <input
+              type="text"
+              value={newBadgeDesc}
+              onChange={(e) => setNewBadgeDesc(e.target.value)}
+              placeholder="Description (optional)"
+              className={INPUT}
+            />
+          </div>
+        )}
+      </Field>
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={saving}
+          className="px-4 py-2 bg-[#1B3A2D] text-white rounded-lg text-[13px] font-semibold disabled:opacity-50 hover:bg-[#142B22]"
+        >
+          {saving ? 'Saving…' : 'Create Challenge'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 bg-white border border-[#D0D0D0] rounded-lg text-[13px] font-semibold text-[#1A1A1A] hover:border-[#1B3A2D]"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function AnalyticsTab() {
   return (

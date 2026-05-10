@@ -43,6 +43,21 @@ export const demoteUserFromChef = (id) =>
 export const resetUserPassword = (id, newPassword) =>
   client.post(`/admin/users/${id}/reset-password`, { new_password: newPassword }).then(r => r.data);
 
+export const getAllTags = () =>
+  client.get('/admin/tags').then(r => r.data);
+
+export const getAllBadges = () =>
+  client.get('/admin/badges').then(r => r.data);
+
+// Raw challenge wrappers — the public api/challenges normalizer renames
+// fields for the cook-facing Challenges page; the admin panel needs the
+// raw backend shape (challenge_id, title, leaderboard, badge_name, …).
+export const getAdminChallenges = () =>
+  client.get('/challenges').then(r => Array.isArray(r.data) ? r.data : (r.data?.items ?? []));
+
+export const getAdminChallenge = (id) =>
+  client.get(`/challenges/${id}`).then(r => r.data);
+
 export const getPendingSuppliers = () =>
   client.get('/admin/pending-suppliers').then(r => r.data);
 

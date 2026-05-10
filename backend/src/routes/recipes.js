@@ -4,12 +4,15 @@ const { requireLogin, optionalAuth, requireRole } = require('../middleware/auth'
 const router = express.Router();
 
 // GET /api/recipes
-// Query params: q, cuisine, difficulty, cookingTime, page, limit
-router.get('/', async (req, res) => {
+// Query params: q, cuisine, difficulty, cookingTime, minRating, ingredient,
+//category, sort (recent|rating), following (1 = only recipes
+//whose publisher is followed by the logged-in user), page, limit
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const {
       q, cuisine, difficulty, cookingTime,
       minRating, ingredient, category,
+      sort, following,
       page = 1, limit = 9,
     } = req.query;
 
@@ -66,6 +69,28 @@ router.get('/', async (req, res) => {
       params.push(category);
     }
 
+    // Follows filter: only recipes published by users the current user follows.
+    // Anonymous request with following=1 → empty result (no one to follow).
+    if (String(following) === '1') {
+      if (!req.user?.id) {
+        return res.json({ items: [], total: 0, page: Number(page), totalPages: 0 });
+      }
+      conditions.push(`EXISTS (
+        SELECT 1 FROM Recipe r_follow
+        JOIN Follows_User fu
+          ON fu.followee_id = COALESCE(r_follow.publisher_chef_id, r_follow.publisher_home_cook_id)
+        WHERE r_follow.recipe_id = rs.recipe_id
+          AND fu.follower_id = ?
+      )`);
+      params.push(req.user.id);
+    }
+
+    // sort=recent uses recipe_id DESC as a proxy (no published_at column
+    // on Recipe). Default ordering remains rating-first.
+    const orderBy = sort === 'recent'
+      ? 'rs.recipe_id DESC'
+      : 'rs.avg_rating DESC, rs.review_count DESC';
+
     const where = conditions.join(' AND ');
 
     // Total record count (for pagination)
@@ -79,7 +104,7 @@ const total = countRows[0].total;
 const recipes = await query(
   `SELECT rs.* FROM Recipe_Summary rs
    WHERE ${where}
-   ORDER BY rs.avg_rating DESC, rs.review_count DESC
+   ORDER BY ${orderBy}
    LIMIT ${Number(limit)} OFFSET ${offset}`,
   params
 );

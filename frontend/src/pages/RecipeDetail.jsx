@@ -302,8 +302,12 @@ export default function RecipeDetail() {
         />
 
         <div className="flex items-center flex-wrap gap-2 mb-5">
-          {recipe.cuisine  && <Tag>{recipe.cuisine}</Tag>}
-          {recipe.category && <Tag>{prettyCategory(recipe.category)}</Tag>}
+          {recipe.cuisine && <Tag>{recipe.cuisine}</Tag>}
+          {Array.isArray(recipe.tags) && recipe.tags.length > 0
+            ? recipe.tags.map((t) => (
+                <Tag key={t.tag_id ?? t.tag_name}>{t.tag_name ?? t}</Tag>
+              ))
+            : recipe.category && <Tag>{prettyCategory(recipe.category)}</Tag>}
           {recipe.difficulty && (
             <span className={`${DIFFICULTY_PILL[(recipe.difficulty || '').toLowerCase()] || 'bg-[#F5F5F5] text-[#1A1A1A]'} text-[12px] font-semibold px-3 py-1 rounded-full`}>
               {capitalize(recipe.difficulty)}

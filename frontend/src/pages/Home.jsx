@@ -58,10 +58,64 @@ export default function Home() {
     <div className="bg-white">
       <Hero />
       <QuickFilterStrip />
+      <FeaturedSelectionsSection highlights={highlights} />
       <FeedSection highlights={highlights} />
       <ChallengesSection challenges={challenges} />
       <RecommendedSection highlights={highlights} />
     </div>
+  );
+}
+
+function FeaturedSelectionsSection({ highlights }) {
+  // Backend returns featured as a flat list of recipes each tagged with the
+  // curator's selection_type — group them so each Featured_Selection row
+  // renders as its own strip.
+  const groups = useMemo(() => {
+    const featured = highlights?.featured ?? [];
+    const byType = new Map();
+    for (const r of featured) {
+      const key = r.selection_type ?? 'Featured';
+      if (!byType.has(key)) byType.set(key, []);
+      byType.get(key).push(r);
+    }
+    return Array.from(byType.entries());
+  }, [highlights]);
+
+  if (highlights === null) return null;
+  if (groups.length === 0) return null;
+
+  return (
+    <section className="bg-[#FAF8F5] border-y border-[#EBEBEB]">
+      <div className="max-w-[1200px] mx-auto px-6 py-10 space-y-10">
+        {groups.map(([type, recipes]) => (
+          <div key={type}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-lg bg-white border border-[#EBEBEB] flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-[#1B3A2D]" strokeWidth={1.5} fill="#F5C518" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-[18px] font-bold text-[#1A1A1A]">{type}</h3>
+                <p className="text-[12px] text-[#6B6B6B]">
+                  Editor's pick · curated by the RecipeRoom admin · {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
+                </p>
+              </div>
+            </div>
+            <div className="-mx-6 px-6 overflow-x-auto pb-2 [scrollbar-width:thin]">
+              <div className="flex gap-4 snap-x snap-mandatory">
+                {recipes.map((r) => (
+                  <div
+                    key={`${type}-${r.recipe_id}`}
+                    className="snap-start shrink-0 w-[260px] sm:w-[280px]"
+                  >
+                    <RecipeCard recipe={r} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

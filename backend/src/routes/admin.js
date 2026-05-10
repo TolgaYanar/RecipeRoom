@@ -519,6 +519,31 @@ router.post('/users/:id/reset-password', async (req, res) => {
   }
 });
 
+// GET /api/admin/tags — populate the required_tag dropdown on the
+// Create Challenge form. Public tags table, no other endpoint exposed it.
+router.get('/tags', async (req, res) => {
+  try {
+    const tags = await query('SELECT tag_id, tag_name FROM Tag ORDER BY tag_name');
+    res.json(tags);
+  } catch (err) {
+    console.error('Error fetching tags:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/badges — populate the badge prize dropdown.
+router.get('/badges', async (req, res) => {
+  try {
+    const badges = await query(
+      'SELECT badge_id, name, description, icon_url FROM Badge ORDER BY name'
+    );
+    res.json(badges);
+  } catch (err) {
+    console.error('Error fetching badges:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.use('/highlights', (req, res, next) => {
   // Rewrite path so highlights router sees /admin prefix correctly
   req.url = '/admin' + (req.url === '/' ? '' : req.url);
